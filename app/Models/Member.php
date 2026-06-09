@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['team_id', 'name', 'position'])]
 class Member extends Model
@@ -23,6 +24,16 @@ class Member extends Model
     public function team(): BelongsTo
     {
         return $this->belongsTo(Team::class);
+    }
+
+    /**
+     * Get the daily scores recorded for this member.
+     *
+     * @return HasMany<Score, $this>
+     */
+    public function scores(): HasMany
+    {
+        return $this->hasMany(Score::class);
     }
 
     /**

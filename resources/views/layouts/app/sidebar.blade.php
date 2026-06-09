@@ -21,6 +21,10 @@
                     <flux:sidebar.item icon="users" :href="route('members.index')" :current="request()->routeIs('members.*')" wire:navigate>
                         {{ __('Members') }}
                     </flux:sidebar.item>
+
+                    <flux:sidebar.item icon="trophy" :href="route('scores.index')" :current="request()->routeIs('scores.*')" wire:navigate>
+                        {{ __('VS Scores') }}
+                    </flux:sidebar.item>
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 

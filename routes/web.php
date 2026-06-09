@@ -11,6 +11,8 @@ Route::prefix('{current_team}')
         Route::view('dashboard', 'dashboard')->name('dashboard');
 
         Route::livewire('members', 'pages::members.index')->name('members.index');
+
+        Route::livewire('scores', 'pages::scores.index')->name('scores.index');
     });
 
 Route::middleware(['auth'])->group(function () {
