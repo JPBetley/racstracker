@@ -102,6 +102,22 @@ test('no more than ten R4 are allowed per team', function () {
         ->assertHasNoErrors();
 });
 
+test('the roster is ordered by position from R5 down to R1', function () {
+    $user = User::factory()->create();
+    $team = $user->currentTeam;
+
+    Member::factory()->for($team)->create(['name' => 'Grunt', 'position' => MemberPosition::R1]);
+    Member::factory()->for($team)->r5()->create(['name' => 'Leader']);
+    Member::factory()->for($team)->create(['name' => 'Captain', 'position' => MemberPosition::R3]);
+    Member::factory()->for($team)->r4()->create(['name' => 'Officer']);
+    Member::factory()->for($team)->create(['name' => 'Sergeant', 'position' => MemberPosition::R2]);
+
+    // Rows render top-to-bottom in roster order, so R5 (Leader) through R1 (Grunt).
+    Livewire::actingAs($user)
+        ->test('pages::members.index')
+        ->assertSeeInOrder(['Leader', 'Officer', 'Captain', 'Sergeant', 'Grunt']);
+});
+
 test('a member can be updated', function () {
     $user = User::factory()->create();
     $member = Member::factory()->for($user->currentTeam)->create([

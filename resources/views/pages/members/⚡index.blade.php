@@ -34,7 +34,7 @@ new #[Title('Members')] class extends Component
     public function members(): Collection
     {
         return $this->team->roster()
-            ->orderBy('position')
+            ->orderByDesc('position')
             ->orderBy('name')
             ->get();
     }
