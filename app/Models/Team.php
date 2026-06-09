@@ -72,6 +72,16 @@ class Team extends Model
     }
 
     /**
+     * Get the alliance roster members tracked for this team.
+     *
+     * @return HasMany<Member, $this>
+     */
+    public function roster(): HasMany
+    {
+        return $this->hasMany(Member::class);
+    }
+
+    /**
      * Get all invitations for this team.
      *
      * @return HasMany<TeamInvitation, $this>
