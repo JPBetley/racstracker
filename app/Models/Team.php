@@ -92,6 +92,16 @@ class Team extends Model
     }
 
     /**
+     * Get all imports started for this team.
+     *
+     * @return HasMany<Import, $this>
+     */
+    public function imports(): HasMany
+    {
+        return $this->hasMany(Import::class);
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
