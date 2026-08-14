@@ -6,6 +6,7 @@ enum ImportStatus: string
 {
     case Pending = 'pending';
     case Processing = 'processing';
+    case AwaitingReview = 'awaiting_review';
     case Completed = 'completed';
     case Failed = 'failed';
 
@@ -14,7 +15,10 @@ enum ImportStatus: string
      */
     public function label(): string
     {
-        return ucfirst($this->value);
+        return match ($this) {
+            self::AwaitingReview => 'Awaiting review',
+            default => ucfirst($this->value),
+        };
     }
 
     /**
@@ -25,6 +29,7 @@ enum ImportStatus: string
         return match ($this) {
             self::Pending => 'zinc',
             self::Processing => 'blue',
+            self::AwaitingReview => 'amber',
             self::Completed => 'green',
             self::Failed => 'red',
         };
