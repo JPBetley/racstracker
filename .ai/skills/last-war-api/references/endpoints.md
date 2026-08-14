@@ -41,7 +41,7 @@ server_id          int      Home server
 current_server_id  int      Current server
 point_id           int      Encoded position (y*1000+x); 0 when not visible
 x, y               int|null Coordinates; null when not visible
-rank               int      Alliance rank — see the rank warning in SKILL.md
+rank               int      Alliance rank; rank N == RN, so 5 is the leader
 online             bool
 join_time          int      Unix timestamp when they joined the alliance
 army_kill          int      Troops killed

@@ -5,7 +5,7 @@ use Illuminate\Support\Facades\Http;
 it('exposes the Last War API service configuration', function () {
     expect(config('services.lastwar'))
         ->toBeArray()
-        ->toHaveKeys(['base_url', 'key', 'session_key', 'alliance_id', 'server_id', 'timeout']);
+        ->toHaveKeys(['base_url', 'key', 'session_key', 'alliance_id', 'timeout']);
 });
 
 it('defaults to the public Last War API base url', function () {
@@ -18,7 +18,6 @@ it('maps each credential to its expected environment variable', function (string
     ['key', 'LASTWAR_API_KEY'],
     ['session_key', 'LASTWAR_SESSION_KEY'],
     ['alliance_id', 'LASTWAR_ALLIANCE_ID'],
-    ['server_id', 'LASTWAR_SERVER_ID'],
 ]);
 
 it('sends the api key as the X-API-Key header', function () {

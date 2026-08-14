@@ -129,7 +129,7 @@ new #[Title('Import roster')] class extends Component
 
     private function loadDraft(Import $import): void
     {
-        $existing = $this->team->roster()->get();
+        $existing = $this->team->roster()->with('aliases')->get();
         $matcher = app(RosterNameMatcher::class);
 
         $this->rows = array_map(function (array $row) use ($existing, $matcher): array {

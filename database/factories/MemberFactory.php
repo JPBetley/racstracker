@@ -23,7 +23,18 @@ class MemberFactory extends Factory
             'team_id' => Team::factory(),
             'name' => fake()->unique()->userName(),
             'position' => MemberPosition::R3,
+            'is_active' => true,
         ];
+    }
+
+    /**
+     * Indicate that the member has left the alliance.
+     */
+    public function inactive(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_active' => false,
+        ]);
     }
 
     /**

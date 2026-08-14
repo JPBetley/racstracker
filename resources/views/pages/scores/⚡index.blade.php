@@ -85,7 +85,12 @@ new #[Title('VS Scores')] class extends Component
         // whereBetween accepts a CarbonPeriod directly and matches the stored datetimes (incl. Saturday).
         $week = CarbonPeriod::create($this->weekStart, $this->weekStart->addDays(5));
 
+        // Departed members stay listed for any week they actually scored in, so
+        // historical rankings remain complete, but drop off the current week.
         return $this->team->roster()
+            ->where(fn ($query) => $query
+                ->where('is_active', true)
+                ->orWhereHas('scores', fn ($scores) => $scores->whereBetween('date', $week)))
             ->orderByDesc('position')
             ->orderBy('name')
             ->with(['scores' => fn ($query) => $query->whereBetween('date', $week)])

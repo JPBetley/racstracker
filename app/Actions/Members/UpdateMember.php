@@ -45,6 +45,7 @@ class UpdateMember
         }
 
         $count = $member->team->roster()
+            ->active()
             ->where('position', $position->value)
             ->whereKeyNot($member->getKey())
             ->lockForUpdate()

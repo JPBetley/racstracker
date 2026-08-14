@@ -33,6 +33,29 @@ enum MemberPosition: string
     }
 
     /**
+     * Map a Last War API alliance rank integer onto a roster position.
+     *
+     * The API numbers ranks the same way the game does, so rank N is simply RN:
+     * 5 is the leader and 1 is a new member. Its documentation calls the field
+     * "Alliance rank (1=R1 Leader)", which reads as though 1 were the leader, but
+     * a live roster shows otherwise — exactly one member at rank 5 and exactly
+     * ten at rank 4, matching the R5 and R4 caps.
+     *
+     * Unknown or out-of-range ranks fall back to R1, the uncapped position, so a
+     * schema change on their side can never breach a position cap here.
+     */
+    public static function fromApiRank(int $rank): self
+    {
+        return match ($rank) {
+            5 => self::R5,
+            4 => self::R4,
+            3 => self::R3,
+            2 => self::R2,
+            default => self::R1,
+        };
+    }
+
+    /**
      * Get all positions formatted for a select input.
      *
      * @return array<array{value: string, label: string}>

@@ -251,3 +251,42 @@ test('the save score action upserts an existing day', function () {
         'points' => 250,
     ]);
 });
+
+test('a departed member still appears in a week they scored in', function () {
+    [$user, $team] = userWithTeam();
+
+    $departed = Member::factory()->for($team)->inactive()->create(['name' => 'Departed']);
+    Score::factory()->for($departed)->create([
+        'date' => CarbonImmutable::parse('2025-01-01'),
+        'points' => 5000,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::scores.index')
+        ->call('previousWeek')
+        ->assertSee('Departed');
+});
+
+test('a departed member is hidden from a week they did not score in', function () {
+    [$user, $team] = userWithTeam();
+
+    Member::factory()->for($team)->inactive()->create(['name' => 'Departed']);
+    Member::factory()->for($team)->create(['name' => 'Current']);
+
+    Livewire::actingAs($user)
+        ->test('pages::scores.index')
+        ->assertSee('Current')
+        ->assertDontSee('Departed');
+});
+
+test('the members page lists only active members', function () {
+    [$user, $team] = userWithTeam();
+
+    Member::factory()->for($team)->create(['name' => 'Current']);
+    Member::factory()->for($team)->inactive()->create(['name' => 'Departed']);
+
+    Livewire::actingAs($user)
+        ->test('pages::members.index')
+        ->assertSee('Current')
+        ->assertDontSee('Departed');
+});

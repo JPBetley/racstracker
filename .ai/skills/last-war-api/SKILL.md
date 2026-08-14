@@ -104,11 +104,11 @@ unless you are querying your own alliance.
 **Most VS fields are nullable.** In `VSPlayerRanking` only `rank` and `uid` are guaranteed — `name`
 and `score` can both be null. Match on `uid`, and never assume a name is present.
 
-**⚠ `rank` semantics are unconfirmed.** `MemberResponse.rank` is documented as
-"Alliance rank (1=R1 Leader)", but in game R5 is the leader, and this app's `MemberPosition` treats R5
-as the top rank (capped at 1 per team). The API's numbering may be inverted relative to ours.
-**Verify against a roster with a known leader before writing the mapping** — getting this backwards
-silently corrupts every member's position, and nothing will throw.
+**`rank` maps straight through — despite how the docs read.** `MemberResponse.rank` is documented as
+"Alliance rank (1=R1 Leader)", which reads as though 1 were the leader. It is not: rank N is simply
+RN, so **rank 5 is the leader and rank 1 is a new member**. Verified against a live 92-member roster,
+which had exactly one member at rank 5 and exactly ten at rank 4 — matching the game's R5 and R4 caps.
+`MemberPosition::fromApiRank()` is the single place this mapping lives.
 
 ## How API code should be written in this app
 

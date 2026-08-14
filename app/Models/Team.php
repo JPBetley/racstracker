@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['name', 'slug', 'is_personal'])]
+#[Fillable(['name', 'slug', 'is_personal', 'alliance_id'])]
 class Team extends Model
 {
     /** @use HasFactory<TeamFactory> */
@@ -99,6 +99,17 @@ class Team extends Model
     public function imports(): HasMany
     {
         return $this->hasMany(Import::class);
+    }
+
+    /**
+     * Get the Last War alliance ID this team's roster is imported from.
+     *
+     * Falls back to the application-wide configured alliance so a single-team
+     * install can be driven entirely from the environment.
+     */
+    public function allianceId(): ?string
+    {
+        return $this->alliance_id ?? config('services.lastwar.alliance_id');
     }
 
     /**

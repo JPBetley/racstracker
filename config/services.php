@@ -47,7 +47,8 @@ return [
     |               endpoint requires it. Obtain one by running the Capture Tool
     |               (https://github.com/LastWarTools/Capture-Tool) and uploading
     |               the result via POST /auth/credentials/upload.
-    | alliance_id:  your alliance's 32-character hex ID, found via
+    | alliance_id:  fallback alliance to import when a team has none of its own,
+    |               as a 32-character hex ID. Found via
     |               GET /rankings/{server_id}/alliances.
     */
     'lastwar' => [
@@ -55,7 +56,6 @@ return [
         'key' => env('LASTWAR_API_KEY'),
         'session_key' => env('LASTWAR_SESSION_KEY'),
         'alliance_id' => env('LASTWAR_ALLIANCE_ID'),
-        'server_id' => env('LASTWAR_SERVER_ID'),
         'timeout' => env('LASTWAR_TIMEOUT', 30),
     ],
 

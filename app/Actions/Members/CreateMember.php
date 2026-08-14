@@ -20,6 +20,14 @@ class CreateMember
         return DB::transaction(function () use ($team, $name, $position) {
             $this->guardPositionCap($team, $position);
 
+            $retired = $team->roster()->inactive()->where('name', $name)->first();
+
+            if ($retired !== null) {
+                $retired->update(['position' => $position, 'is_active' => true]);
+
+                return $retired;
+            }
+
             return $team->roster()->create([
                 'name' => $name,
                 'position' => $position,
@@ -41,6 +49,7 @@ class CreateMember
         }
 
         $count = $team->roster()
+            ->active()
             ->where('position', $position->value)
             ->lockForUpdate()
             ->count();

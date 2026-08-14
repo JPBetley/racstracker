@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Imports\Ocr\AiVisionRosterScreenshotReader;
 use App\Imports\Ocr\Contracts\RosterScreenshotReader;
+use App\LastWar\Contracts\LastWarApi;
+use App\LastWar\HttpLastWarApi;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +20,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(RosterScreenshotReader::class, AiVisionRosterScreenshotReader::class);
+        $this->app->bind(LastWarApi::class, HttpLastWarApi::class);
     }
 
     /**
