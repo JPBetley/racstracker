@@ -201,14 +201,27 @@ This is the endpoint to use to discover your own `alliance_id` for `/alliance/{i
 
 ### `GET /auth/validate`
 
-Validates an API key **without deducting tokens**. Returns basic user info. Use for health checks.
-The spec declares no response schema.
+Validates an API key **without deducting tokens**. Use for health checks.
+
+The spec declares no response schema. Verified live:
+
+```json
+{ "status": "ok", "user_id": 184, "display_name": "Tatsumori" }
+```
 
 ### `GET /auth/sessions`
 
 Lists active game sessions for the authenticated key, with their session keys. One API key may hold
-several sessions (different game accounts or servers). The spec declares no response schema — inspect
-the live response before depending on field names.
+several sessions (different game accounts or servers).
+
+The spec declares no response schema. Verified live — the response is an envelope, **not** a bare
+array, and is empty until credentials have been uploaded:
+
+```json
+{ "sessions": [] }
+```
+
+Inspect a populated response before depending on the shape of individual session objects.
 
 ### `POST /auth/credentials/upload`
 
