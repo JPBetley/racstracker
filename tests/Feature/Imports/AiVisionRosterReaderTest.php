@@ -31,6 +31,24 @@ test('it cleans and de-duplicates the members returned by the vision agent', fun
     RosterScreenshotExtractor::assertPrompted(fn ($prompt) => $prompt->contains('roster'));
 });
 
+test('it sends every screenshot to the configured Claude model in a single request', function () {
+    config()->set('roster.ocr.provider', 'anthropic');
+    config()->set('roster.ocr.model', 'claude-opus-5');
+
+    RosterScreenshotExtractor::fake(fn () => ['members' => []]);
+
+    (new AiVisionRosterScreenshotReader)->read([
+        base_path('tests/stubs/team/team-1.png'),
+        base_path('tests/stubs/team/team-2.png'),
+    ]);
+
+    RosterScreenshotExtractor::assertPrompted(
+        fn ($prompt) => $prompt->model === 'claude-opus-5'
+            && $prompt->provider->driver() === 'anthropic'
+            && $prompt->attachments->count() === 2
+    );
+});
+
 test('it returns nothing when given no screenshots and never calls the model', function () {
     RosterScreenshotExtractor::fake()->preventStrayPrompts();
 
