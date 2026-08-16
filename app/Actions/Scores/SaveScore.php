@@ -5,48 +5,31 @@ namespace App\Actions\Scores;
 use App\Models\Member;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
 class SaveScore
 {
     /**
-     * Record (or clear) a member's score for a single scoring day.
+     * Record (or clear) a member's full score for a single VS week.
      *
-     * A null point value removes the score, letting users clear a cell.
-     *
-     * @throws ValidationException
+     * Any date within the week is accepted and normalised to that week's
+     * Monday, so callers never have to align dates themselves. A null point
+     * value removes the score, letting users clear a cell.
      */
-    public function handle(Member $member, CarbonInterface $date, ?int $points): void
+    public function handle(Member $member, CarbonInterface $weekStart, ?int $points): void
     {
-        $this->guardScoringDay($date);
+        $weekStart = $weekStart->startOfWeek(CarbonInterface::MONDAY)->startOfDay();
 
-        $date = $date->startOfDay();
-
-        DB::transaction(function () use ($member, $date, $points) {
+        DB::transaction(function () use ($member, $weekStart, $points) {
             if ($points === null) {
-                $member->scores()->whereDate('date', $date)->delete();
+                $member->scores()->whereDate('week_start', $weekStart)->delete();
 
                 return;
             }
 
             $member->scores()->updateOrCreate(
-                ['date' => $date],
+                ['week_start' => $weekStart],
                 ['points' => $points],
             );
         });
-    }
-
-    /**
-     * Ensure the score falls on a scoring day (Monday through Saturday).
-     *
-     * @throws ValidationException
-     */
-    private function guardScoringDay(CarbonInterface $date): void
-    {
-        if ($date->dayOfWeekIso === 7) {
-            throw ValidationException::withMessages([
-                'points' => __('Scores cannot be recorded on a Sunday.'),
-            ]);
-        }
     }
 }

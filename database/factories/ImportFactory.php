@@ -35,6 +35,23 @@ class ImportFactory extends Factory
     }
 
     /**
+     * Indicate that the import records weekly VS scores.
+     */
+    public function vsScores(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'type' => ImportType::VsScores,
+            'payload' => [
+                'week_start' => '2025-01-06',
+                'screenshots' => ['imports/vs-1.png'],
+                'scores' => [
+                    ['member_id' => null, 'name' => fake()->unique()->userName(), 'points' => 1_000_000],
+                ],
+            ],
+        ]);
+    }
+
+    /**
      * Indicate that the import is processing.
      */
     public function processing(): static

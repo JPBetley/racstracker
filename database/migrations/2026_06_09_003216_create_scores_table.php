@@ -14,12 +14,12 @@ return new class extends Migration
         Schema::create('scores', function (Blueprint $table) {
             $table->id();
             $table->foreignId('member_id')->constrained()->cascadeOnDelete();
-            $table->date('date');
+            $table->date('week_start');
             $table->unsignedBigInteger('points');
             $table->timestamps();
 
-            $table->unique(['member_id', 'date']);
-            $table->index('date');
+            $table->unique(['member_id', 'week_start']);
+            $table->index('week_start');
         });
     }
 

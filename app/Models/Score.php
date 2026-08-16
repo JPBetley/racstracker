@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['member_id', 'date', 'points'])]
+#[Fillable(['member_id', 'week_start', 'points'])]
 class Score extends Model
 {
     /** @use HasFactory<ScoreFactory> */
@@ -32,7 +32,7 @@ class Score extends Model
     protected function casts(): array
     {
         return [
-            'date' => 'immutable_date',
+            'week_start' => 'immutable_date',
             'points' => 'integer',
         ];
     }

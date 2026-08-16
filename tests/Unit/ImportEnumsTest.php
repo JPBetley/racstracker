@@ -3,6 +3,7 @@
 use App\Enums\ImportStatus;
 use App\Enums\ImportType;
 use App\Imports\Workflows\RosterImportWorkflow;
+use App\Imports\Workflows\VsScoreImportWorkflow;
 use App\Jobs\Imports\ImportStep;
 use App\Models\Import;
 
@@ -15,6 +16,21 @@ test('the roster type resolves to the roster workflow and its steps', function (
 
     expect($steps)->toHaveCount(1)
         ->and($steps[0])->toBeInstanceOf(ImportStep::class);
+});
+
+test('the vs scores type resolves to the vs score workflow and its steps', function () {
+    $workflow = ImportType::VsScores->workflow();
+
+    expect($workflow)->toBeInstanceOf(VsScoreImportWorkflow::class);
+
+    $steps = $workflow->steps(new Import);
+
+    expect($steps)->toHaveCount(1)
+        ->and($steps[0])->toBeInstanceOf(ImportStep::class);
+});
+
+test('the vs scores type is labelled for display', function () {
+    expect(ImportType::VsScores->label())->toBe('VS Scores');
 });
 
 test('import status exposes labels and badge colors', function () {

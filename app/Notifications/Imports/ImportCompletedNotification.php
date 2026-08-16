@@ -47,6 +47,14 @@ class ImportCompletedNotification extends Notification
             ]));
         }
 
+        // Imports that overwrite report updates separately, so a run that replaced
+        // every record does not read as "0 of 47 records were imported".
+        if (! empty($results['updated'])) {
+            $message->line(__(':updated existing records were updated.', [
+                'updated' => $results['updated'],
+            ]));
+        }
+
         return $message;
     }
 

@@ -112,6 +112,28 @@ test('the completion listener emails the creator from a background job', functio
     Notification::assertSentTo($creator, ImportCompletedNotification::class);
 });
 
+test('the completion mail reports updated records for an overwriting import', function () {
+    $creator = User::factory()->create();
+    $import = Import::factory()->for($creator, 'creator')->vsScores()->completed()->create([
+        'results' => ['total' => 3, 'created' => 1, 'updated' => 2, 'skipped' => []],
+    ]);
+
+    $lines = (new ImportCompletedNotification($import))->toMail($creator)->introLines;
+
+    expect($lines)->toContain('1 of 3 records were imported.')
+        ->and($lines)->toContain('2 existing records were updated.');
+});
+
+test('the completion mail omits the updated line for an import that never overwrites', function () {
+    $creator = User::factory()->create();
+    $import = Import::factory()->for($creator, 'creator')->completed()->create();
+
+    $lines = (new ImportCompletedNotification($import))->toMail($creator)->introLines;
+
+    expect($lines)->toContain('1 of 1 records were imported.')
+        ->and(collect($lines)->filter(fn (string $line): bool => str_contains($line, 'updated')))->toBeEmpty();
+});
+
 test('the failure listener emails the creator from a background job', function () {
     Notification::fake();
     $creator = User::factory()->create();

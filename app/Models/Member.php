@@ -93,7 +93,7 @@ class Member extends Model
     }
 
     /**
-     * Get the daily scores recorded for this member.
+     * Get the weekly VS scores recorded for this member.
      *
      * @return HasMany<Score, $this>
      */

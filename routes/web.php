@@ -15,6 +15,8 @@ Route::prefix('{current_team}')
         Route::livewire('members/import', 'pages::members.import')->name('members.import');
 
         Route::livewire('scores', 'pages::scores.index')->name('scores.index');
+
+        Route::livewire('scores/import', 'pages::scores.import')->name('scores.import');
     });
 
 Route::middleware(['auth'])->group(function () {

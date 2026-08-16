@@ -22,32 +22,28 @@ class ScoreFactory extends Factory
     {
         return [
             'member_id' => Member::factory(),
-            'date' => $this->weekday(),
+            'week_start' => $this->recentWeekStart(),
             'points' => fake()->numberBetween(0, 5_000_000),
         ];
     }
 
     /**
-     * Record the score against a specific date.
+     * Record the score against the VS week containing the given date.
      */
-    public function onDate(CarbonInterface $date): static
+    public function forWeek(CarbonInterface $date): static
     {
         return $this->state(fn (array $attributes) => [
-            'date' => $date->toDateString(),
+            'week_start' => $date->startOfWeek(CarbonInterface::MONDAY)->toDateString(),
         ]);
     }
 
     /**
-     * Generate a date that falls on a scoring weekday (Monday through Saturday).
+     * Generate the Monday of a VS week within the last couple of months.
      */
-    private function weekday(): string
+    private function recentWeekStart(): string
     {
-        $date = Carbon::instance(fake()->dateTimeBetween('-8 weeks', 'now'));
-
-        if ($date->dayOfWeekIso === 7) {
-            $date = $date->subDay();
-        }
-
-        return $date->toDateString();
+        return Carbon::instance(fake()->dateTimeBetween('-8 weeks', 'now'))
+            ->startOfWeek(CarbonInterface::MONDAY)
+            ->toDateString();
     }
 }
