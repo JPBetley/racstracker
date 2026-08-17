@@ -318,3 +318,52 @@ test('an MVP badge is shown on the row and a plain assignment gets none', functi
         ->test('pages::conductors.index')
         ->assertDontSeeHtml('data-test="conductor-mvp-badge"');
 });
+
+test('the day badge is colored by how the date compares to today', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-08-17 12:00:00', 'UTC'));
+
+    $user = User::factory()->create();
+    $team = $user->currentTeam;
+
+    foreach (['2026-08-16', '2026-08-17', '2026-08-18'] as $date) {
+        ConductorAssignment::factory()->for($team)->on(CarbonImmutable::parse($date))->create();
+    }
+
+    $component = Livewire::actingAs($user)->test('pages::conductors.index');
+
+    expect($component->instance()->dayColor(CarbonImmutable::parse('2026-08-16')))->toBe('zinc')
+        ->and($component->instance()->dayColor(CarbonImmutable::parse('2026-08-17')))->toBe('green')
+        ->and($component->instance()->dayColor(CarbonImmutable::parse('2026-08-18')))->toBe('yellow');
+
+    // The badge in the Day column is actually painted with those colors.
+    $component->assertSeeHtml('bg-zinc-400/15')
+        ->assertSeeHtml('bg-green-400/20')
+        ->assertSeeHtml('bg-yellow-400/25');
+});
+
+test('the highlighted day follows the browser timezone', function () {
+    // 02:00 UTC on the 17th is still the evening of the 16th in New York.
+    $this->travelTo(CarbonImmutable::parse('2026-08-17 02:00:00', 'UTC'));
+
+    $user = User::factory()->create();
+
+    $component = Livewire::actingAs($user)->test('pages::conductors.index');
+
+    expect($component->instance()->dayColor(CarbonImmutable::parse('2026-08-17')))->toBe('green');
+
+    $component->call('setTimezone', 'America/New_York');
+
+    expect($component->instance()->dayColor(CarbonImmutable::parse('2026-08-17')))->toBe('yellow');
+});
+
+test('a new assignment defaults to the date in the browser timezone', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-08-17 02:00:00', 'UTC'));
+
+    $user = User::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::conductors.index')
+        ->call('setTimezone', 'America/New_York')
+        ->call('addAssignment')
+        ->assertSet('assignedOn', '2026-08-16');
+});

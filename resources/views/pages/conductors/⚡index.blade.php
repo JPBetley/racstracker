@@ -28,10 +28,53 @@ new #[Title('Train Conductor')] class extends Component
 
     public ?int $editingId = null;
 
+    public ?string $timezone = null;
+
+    /**
+     * Set the active timezone from the browser so "today" matches the viewer.
+     */
+    public function setTimezone(string $timezone): void
+    {
+        if ($timezone === $this->timezone || ! in_array($timezone, timezone_identifiers_list(), true)) {
+            return;
+        }
+
+        $this->timezone = $timezone;
+    }
+
     #[Computed]
     public function team(): Team
     {
         return Auth::user()->currentTeam;
+    }
+
+    /**
+     * The current date in the viewer's timezone, falling back to the app default.
+     */
+    #[Computed]
+    public function today(): CarbonImmutable
+    {
+        return CarbonImmutable::today($this->timezone ?? config('app.timezone'));
+    }
+
+    /**
+     * Badge color for a scheduled day: green for today, yellow for anything
+     * still upcoming, zinc for days already run.
+     *
+     * Calendar dates are compared as `Y-m-d` strings rather than as instants
+     * because `assigned_on` hydrates at midnight UTC while today is midnight in
+     * the viewer's zone, so the same day is two different moments.
+     */
+    public function dayColor(CarbonImmutable $assignedOn): string
+    {
+        $date = $assignedOn->toDateString();
+        $today = $this->today->toDateString();
+
+        return match (true) {
+            $date === $today => 'green',
+            $date > $today => 'yellow',
+            default => 'zinc',
+        };
     }
 
     /**
@@ -75,7 +118,7 @@ new #[Title('Train Conductor')] class extends Component
     {
         $this->resetForm();
 
-        $this->assignedOn = CarbonImmutable::today()->toDateString();
+        $this->assignedOn = $this->today->toDateString();
 
         Flux::modal('conductor-form')->show();
     }
@@ -166,7 +209,7 @@ new #[Title('Train Conductor')] class extends Component
     }
 }; ?>
 
-<section class="w-full">
+<section class="w-full" x-data x-init="$wire.setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone)">
     <div class="flex items-center justify-between">
         <div>
             <flux:heading size="xl">{{ __('Train Conductor') }}</flux:heading>
@@ -213,7 +256,9 @@ new #[Title('Train Conductor')] class extends Component
                             <flux:table.cell>{{ $assignment->assigned_on->format('M j, Y') }}</flux:table.cell>
 
                             <flux:table.cell>
-                                <flux:badge size="sm" color="zinc">{{ $assignment->assigned_on->format('l') }}</flux:badge>
+                                <flux:badge size="sm" :color="$this->dayColor($assignment->assigned_on)" data-test="conductor-day-badge">
+                                    {{ $assignment->assigned_on->format('l') }}
+                                </flux:badge>
                             </flux:table.cell>
 
                             <flux:table.cell align="end">
