@@ -140,6 +140,21 @@ test('a member can be updated', function () {
     ]);
 });
 
+test('renaming a member records both names as aliases', function () {
+    $user = User::factory()->create();
+    $member = Member::factory()->for($user->currentTeam)->create(['name' => 'Old Name']);
+
+    Livewire::actingAs($user)
+        ->test('pages::members.index')
+        ->call('editMember', $member->id)
+        ->set('name', 'New Name')
+        ->call('saveMember')
+        ->assertHasNoErrors();
+
+    expect($member->aliases()->pluck('name')->sort()->values()->all())
+        ->toBe(['New Name', 'Old Name']);
+});
+
 test('editing the only R5 in place does not trip the cap', function () {
     $user = User::factory()->create();
     $member = Member::factory()->for($user->currentTeam)->r5()->create(['name' => 'Yeti']);

@@ -12,6 +12,11 @@ class UpdateMember
     /**
      * Update a roster member, enforcing position caps when the position changes.
      *
+     * Both names are recorded as aliases, so a rename entered by hand keeps the
+     * member matchable against screenshots and scores taken under the old name.
+     * The previous name also covers members that predate aliases, whose stored
+     * name would otherwise never be recorded.
+     *
      * @throws ValidationException
      */
     public function handle(Member $member, string $name, MemberPosition $position): Member
@@ -21,10 +26,15 @@ class UpdateMember
                 $this->guardPositionCap($member, $position);
             }
 
+            $previousName = $member->name;
+
             $member->update([
                 'name' => $name,
                 'position' => $position,
             ]);
+
+            $member->recordAlias($previousName);
+            $member->recordAlias($name);
 
             return $member;
         });
