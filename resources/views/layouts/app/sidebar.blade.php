@@ -29,6 +29,10 @@
                     <flux:sidebar.item icon="trophy" :href="route('scores.index')" :current="request()->routeIs('scores.*')" wire:navigate>
                         {{ __('VS Scores') }}
                     </flux:sidebar.item>
+
+                    <flux:sidebar.item icon="cog-6-tooth" :href="route('team-settings.edit')" :current="request()->routeIs('team-settings.*')" wire:navigate>
+                        {{ __('Team Settings') }}
+                    </flux:sidebar.item>
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 

@@ -17,6 +17,8 @@ Route::prefix('{current_team}')
         Route::livewire('scores', 'pages::scores.index')->name('scores.index');
 
         Route::livewire('scores/import', 'pages::scores.import')->name('scores.import');
+
+        Route::livewire('settings', 'pages::teams.settings')->name('team-settings.edit');
     });
 
 Route::middleware(['auth'])->group(function () {

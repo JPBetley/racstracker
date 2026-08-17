@@ -12,11 +12,25 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['name', 'slug', 'is_personal', 'alliance_id'])]
+#[Fillable(['name', 'slug', 'is_personal', 'alliance_id', 'vs_minimum', 'train_vs_requirement', 'train_desert_storm_requirement'])]
 class Team extends Model
 {
     /** @use HasFactory<TeamFactory> */
     use GeneratesUniqueTeamSlugs, HasFactory, SoftDeletes;
+
+    /**
+     * The model's default attribute values.
+     *
+     * The requirement columns default in the database too, but these mirror them
+     * so a freshly created team reports "no requirement" without being refreshed.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'vs_minimum' => 0,
+        'train_vs_requirement' => 0,
+        'train_desert_storm_requirement' => false,
+    ];
 
     /**
      * Bootstrap the model and its traits.
@@ -131,6 +145,9 @@ class Team extends Model
     {
         return [
             'is_personal' => 'boolean',
+            'vs_minimum' => 'integer',
+            'train_vs_requirement' => 'integer',
+            'train_desert_storm_requirement' => 'boolean',
         ];
     }
 
