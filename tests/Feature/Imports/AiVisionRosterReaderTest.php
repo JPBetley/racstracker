@@ -4,8 +4,6 @@ use App\Ai\Agents\RosterScreenshotExtractor;
 use App\Imports\Ocr\AiVisionRosterScreenshotReader;
 
 test('it cleans and de-duplicates the members returned by the vision agent', function () {
-    // A closure fake answers every request the same way, so this holds whether the
-    // reader sends one request (cloud) or one per screenshot (local Ollama).
     RosterScreenshotExtractor::fake(fn () => [
         'members' => [
             ['name' => 'I am Mr Yeti', 'position' => 'R5'],
@@ -32,8 +30,9 @@ test('it cleans and de-duplicates the members returned by the vision agent', fun
 });
 
 test('it sends every screenshot to the configured Claude model in a single request', function () {
-    config()->set('roster.ocr.provider', 'anthropic');
-    config()->set('roster.ocr.model', 'claude-opus-5');
+    // Deliberately not a real model name: it cannot collide with the config default,
+    // so the assertion proves the configured value is what actually reaches the prompt.
+    config()->set('roster.ocr.model', 'claude-model-under-test');
 
     RosterScreenshotExtractor::fake(fn () => ['members' => []]);
 
@@ -42,8 +41,9 @@ test('it sends every screenshot to the configured Claude model in a single reque
         base_path('tests/stubs/team/team-2.png'),
     ]);
 
+    // The provider is pinned to Anthropic in the reader; only the model is configurable.
     RosterScreenshotExtractor::assertPrompted(
-        fn ($prompt) => $prompt->model === 'claude-opus-5'
+        fn ($prompt) => $prompt->model === 'claude-model-under-test'
             && $prompt->provider->driver() === 'anthropic'
             && $prompt->attachments->count() === 2
     );

@@ -7,19 +7,21 @@ return [
     | VS Score Screenshot OCR
     |--------------------------------------------------------------------------
     |
-    | The AI provider and model used to read VS "Weekly Rank" screenshots. This
-    | mirrors config/roster.php but is configured separately so score reading can
-    | run on a different model than roster reading — score digits are far less
-    | forgiving than positions, so this side may warrant a stronger model.
+    | The Claude model used to read VS "Weekly Rank" screenshots. The pipeline
+    | runs on Anthropic and needs an ANTHROPIC_API_KEY from the Claude Console
+    | (https://console.anthropic.com).
     |
-    | provider: one of the Laravel\Ai\Enums\Lab values, e.g. "anthropic",
-    |           "ollama", "gemini", "openai", "openrouter".
-    | model:    a vision-capable model string for that provider.
+    | This mirrors config/roster.php but is configured separately so score
+    | reading can run on a different model than roster reading — score digits are
+    | far less forgiving than positions, so this side may warrant the stronger
+    | model even when the roster does not.
+    |
+    | model: a vision-capable Claude model. Set VS_OCR_MODEL in your .env to move
+    |        to a cheaper read, e.g. "claude-sonnet-5".
     |
     */
 
     'ocr' => [
-        'provider' => env('VS_OCR_PROVIDER', 'anthropic'),
         'model' => env('VS_OCR_MODEL', 'claude-opus-5'),
     ],
 

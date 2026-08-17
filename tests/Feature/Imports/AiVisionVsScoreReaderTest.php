@@ -4,8 +4,6 @@ use App\Ai\Agents\VsScoreScreenshotExtractor;
 use App\Imports\Ocr\AiVisionVsScoreScreenshotReader;
 
 test('it parses points, cleans names, and de-duplicates the rows returned by the vision agent', function () {
-    // A closure fake answers every request the same way, so this holds whether the
-    // reader sends one request (cloud) or one per screenshot (local Ollama).
     VsScoreScreenshotExtractor::fake(fn () => [
         'rows' => [
             ['rank' => 1, 'name' => 'Femme de Fatale', 'points' => '59,882,250'],
@@ -51,8 +49,9 @@ test('it keeps the base letter of a decorated Latin name but drops other scripts
 });
 
 test('it sends every screenshot to the configured Claude model in a single request', function () {
-    config()->set('vs.ocr.provider', 'anthropic');
-    config()->set('vs.ocr.model', 'claude-opus-5');
+    // Deliberately not a real model name: it cannot collide with the config default,
+    // so the assertion proves the configured value is what actually reaches the prompt.
+    config()->set('vs.ocr.model', 'claude-model-under-test');
 
     VsScoreScreenshotExtractor::fake(fn () => ['rows' => []]);
 
@@ -61,25 +60,12 @@ test('it sends every screenshot to the configured Claude model in a single reque
         base_path('tests/stubs/vs/vs-2.png'),
     ]);
 
+    // The provider is pinned to Anthropic in the reader; only the model is configurable.
     VsScoreScreenshotExtractor::assertPrompted(
-        fn ($prompt) => $prompt->model === 'claude-opus-5'
+        fn ($prompt) => $prompt->model === 'claude-model-under-test'
             && $prompt->provider->driver() === 'anthropic'
             && $prompt->attachments->count() === 2
     );
-});
-
-test('it reads one screenshot per request on a local model', function () {
-    config()->set('vs.ocr.provider', 'ollama');
-    config()->set('vs.ocr.model', 'llama3.2-vision');
-
-    VsScoreScreenshotExtractor::fake(fn () => ['rows' => []]);
-
-    (new AiVisionVsScoreScreenshotReader)->read([
-        base_path('tests/stubs/vs/vs-1.png'),
-        base_path('tests/stubs/vs/vs-2.png'),
-    ]);
-
-    VsScoreScreenshotExtractor::assertPrompted(fn ($prompt) => $prompt->attachments->count() === 1);
 });
 
 test('it returns nothing when given no screenshots and never calls the model', function () {

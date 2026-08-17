@@ -8,16 +8,13 @@ use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Files;
 
 /**
- * Reads alliance roster screenshots with a vision model via the Laravel AI SDK.
+ * Reads alliance roster screenshots with Claude via the Laravel AI SDK.
  *
- * The provider and model come from config/roster.php, so this works with a paid,
- * high-accuracy model (Claude) or a free one (a local Ollama model, or Gemini's free
- * tier) by changing .env only.
+ * Every screenshot goes into a single prompt, so the model can de-duplicate the
+ * overlapping scroll captures itself. The model to use comes from config/roster.php.
  *
- * Cloud models read all screenshots in one prompt and de-duplicate the overlapping
- * scroll captures themselves. Small local (Ollama) models lose recall when handed
- * many images at once, so each screenshot is read in its own request and the rows
- * are merged here. Names are cleaned and de-duplicated again as defensive insurance.
+ * Names are still cleaned and de-duplicated here as defensive insurance, since the
+ * same member necessarily appears in several overlapping captures.
  */
 class AiVisionRosterScreenshotReader implements RosterScreenshotReader
 {
@@ -29,31 +26,17 @@ class AiVisionRosterScreenshotReader implements RosterScreenshotReader
             return [];
         }
 
-        $provider = Lab::from(config('roster.ocr.provider'));
-        $model = config('roster.ocr.model');
-        $paths = array_values($imagePaths);
+        $response = (new RosterScreenshotExtractor)->prompt(
+            'Extract the alliance roster from these member-list screenshots.',
+            attachments: array_map(
+                fn (string $path) => Files\Image::fromPath($path),
+                array_values($imagePaths),
+            ),
+            provider: Lab::Anthropic,
+            model: config('roster.ocr.model'),
+        );
 
-        // Local models read one screenshot at a time; cloud models take them all at once.
-        $batches = $provider === Lab::Ollama
-            ? array_map(fn (string $path): array => [$path], $paths)
-            : [$paths];
-
-        $rows = [];
-
-        foreach ($batches as $batch) {
-            $response = (new RosterScreenshotExtractor)->prompt(
-                'Extract the alliance roster from these member-list screenshots.',
-                attachments: array_map(fn (string $path) => Files\Image::fromPath($path), $batch),
-                provider: $provider,
-                model: $model,
-            );
-
-            foreach ($response['members'] ?? [] as $row) {
-                $rows[] = $row;
-            }
-        }
-
-        return $this->normalise($rows);
+        return $this->normalise($response['members'] ?? []);
     }
 
     /**

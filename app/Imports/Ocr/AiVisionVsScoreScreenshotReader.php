@@ -9,18 +9,15 @@ use Laravel\Ai\Files;
 use Normalizer;
 
 /**
- * Reads VS "Weekly Rank" screenshots with a vision model via the Laravel AI SDK.
+ * Reads VS "Weekly Rank" screenshots with Claude via the Laravel AI SDK.
  *
- * The provider and model come from config/vs.php, so this works with a paid,
- * high-accuracy model (Claude) or a free one (a local Ollama model, or Gemini's free
- * tier) by changing .env only.
+ * Every screenshot goes into a single prompt, so the model can de-duplicate the
+ * overlapping scroll captures itself. The model to use comes from config/vs.php.
  *
- * Cloud models read all screenshots in one prompt and de-duplicate the overlapping
- * scroll captures themselves. Small local (Ollama) models lose recall when handed
- * many images at once, so each screenshot is read in its own request and the rows
- * are merged here. Rows are cleaned, parsed and de-duplicated again as defensive
- * insurance: the pinned "your row" repeats on every capture and edge rows are
- * routinely clipped, so the prompt alone is not trusted to produce a clean list.
+ * The returned rows are still cleaned, parsed and de-duplicated here, because the
+ * screen itself is adversarial rather than the model being weak: the pinned "your
+ * row" appears on every capture with an out-of-sequence rank, and rows at the top
+ * and bottom edges are routinely clipped mid-number.
  */
 class AiVisionVsScoreScreenshotReader implements VsScoreScreenshotReader
 {
@@ -30,31 +27,17 @@ class AiVisionVsScoreScreenshotReader implements VsScoreScreenshotReader
             return [];
         }
 
-        $provider = Lab::from(config('vs.ocr.provider'));
-        $model = config('vs.ocr.model');
-        $paths = array_values($imagePaths);
+        $response = (new VsScoreScreenshotExtractor)->prompt(
+            'Extract the weekly VS leaderboard from these ranking screenshots.',
+            attachments: array_map(
+                fn (string $path) => Files\Image::fromPath($path),
+                array_values($imagePaths),
+            ),
+            provider: Lab::Anthropic,
+            model: config('vs.ocr.model'),
+        );
 
-        // Local models read one screenshot at a time; cloud models take them all at once.
-        $batches = $provider === Lab::Ollama
-            ? array_map(fn (string $path): array => [$path], $paths)
-            : [$paths];
-
-        $rows = [];
-
-        foreach ($batches as $batch) {
-            $response = (new VsScoreScreenshotExtractor)->prompt(
-                'Extract the weekly VS leaderboard from these ranking screenshots.',
-                attachments: array_map(fn (string $path) => Files\Image::fromPath($path), $batch),
-                provider: $provider,
-                model: $model,
-            );
-
-            foreach ($response['rows'] ?? [] as $row) {
-                $rows[] = $row;
-            }
-        }
-
-        return $this->normalise($rows);
+        return $this->normalise($response['rows'] ?? []);
     }
 
     /**

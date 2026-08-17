@@ -10,13 +10,11 @@ use Laravel\Ai\Contracts\HasStructuredOutput;
 use Laravel\Ai\Promptable;
 
 /**
- * Reads an alliance roster from in-game "MEMBER LIST" screenshots via a vision model.
+ * Reads an alliance roster from in-game "MEMBER LIST" screenshots via Claude.
  *
- * The reader decides how many screenshots to send per request (all at once for cloud
- * models, one at a time for local Ollama models). The provider and model come from
- * config (see config/roster.php), so the same agent works on a paid model (Claude) or
- * a free one (Ollama, Gemini free tier). No sampling attributes (Temperature/TopP) are
- * set — Claude rejects them from Opus 4.7 onwards.
+ * The reader sends every screenshot in one request. The model comes from config (see
+ * config/roster.php). No sampling attributes (Temperature/TopP) are set — Claude
+ * rejects them from Opus 4.7 onwards.
  *
  * MaxTokens is generous because Claude counts thinking tokens against it, and thinking
  * is on by default on Opus 5; a tight budget truncates the roster mid-list.
