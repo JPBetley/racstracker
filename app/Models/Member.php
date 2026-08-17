@@ -103,6 +103,16 @@ class Member extends Model
     }
 
     /**
+     * Get the days this member has conducted the train.
+     *
+     * @return HasMany<ConductorAssignment, $this>
+     */
+    public function conductorAssignments(): HasMany
+    {
+        return $this->hasMany(ConductorAssignment::class);
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>

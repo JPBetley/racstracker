@@ -14,6 +14,8 @@ Route::prefix('{current_team}')
 
         Route::livewire('conductors', 'pages::conductors.index')->name('conductors.index');
 
+        Route::livewire('conductors/plan', 'pages::conductors.plan')->name('conductors.plan');
+
         Route::livewire('scores', 'pages::scores.index')->name('scores.index');
 
         Route::livewire('scores/import', 'pages::scores.import')->name('scores.import');

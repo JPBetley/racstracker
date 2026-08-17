@@ -217,6 +217,16 @@ new #[Title('Train Conductor')] class extends Component
         </div>
 
         <div class="flex items-center gap-2">
+            <flux:button
+                :href="route('conductors.plan')"
+                wire:navigate
+                variant="filled"
+                icon="calendar-days"
+                data-test="conductor-plan-button"
+            >
+                {{ __('Plan week') }}
+            </flux:button>
+
             <flux:button variant="primary" icon="plus" wire:click="addAssignment" data-test="conductor-add-button">
                 {{ __('Assign conductor') }}
             </flux:button>
