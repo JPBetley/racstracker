@@ -22,6 +22,10 @@
                         {{ __('Members') }}
                     </flux:sidebar.item>
 
+                    <flux:sidebar.item icon="calendar-days" :href="route('conductors.index')" :current="request()->routeIs('conductors.*')" wire:navigate>
+                        {{ __('Train Conductor') }}
+                    </flux:sidebar.item>
+
                     <flux:sidebar.item icon="trophy" :href="route('scores.index')" :current="request()->routeIs('scores.*')" wire:navigate>
                         {{ __('VS Scores') }}
                     </flux:sidebar.item>

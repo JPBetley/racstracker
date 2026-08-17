@@ -82,6 +82,16 @@ class Team extends Model
     }
 
     /**
+     * Get the daily train conductor assignments recorded for this team.
+     *
+     * @return HasMany<ConductorAssignment, $this>
+     */
+    public function conductorAssignments(): HasMany
+    {
+        return $this->hasMany(ConductorAssignment::class);
+    }
+
+    /**
      * Get all invitations for this team.
      *
      * @return HasMany<TeamInvitation, $this>
