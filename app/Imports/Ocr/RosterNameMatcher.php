@@ -38,6 +38,10 @@ class RosterNameMatcher
             return null;
         }
 
+        if (($exact = $this->resolve($name, $members)) !== null) {
+            return $exact;
+        }
+
         $normalisedNeedle = $this->normalise($name);
 
         $best = null;
@@ -45,10 +49,6 @@ class RosterNameMatcher
 
         foreach ($members as $member) {
             foreach ($this->knownNames($member) as $known) {
-                if ($known === $needle || $this->normalise($known) === $normalisedNeedle) {
-                    return $member;
-                }
-
                 similar_text($normalisedNeedle, $this->normalise($known), $percent);
 
                 if ($percent > $bestScore) {
@@ -59,6 +59,38 @@ class RosterNameMatcher
         }
 
         return $bestScore >= self::THRESHOLD ? $best : null;
+    }
+
+    /**
+     * Find the member a name refers to without guessing.
+     *
+     * Only an exact or normalised hit against a member's current name or one of
+     * their aliases counts, so "Sunset Ryder OG" still reaches the roster's
+     * double-spaced "Sunset  Ryder  OG" while a merely similar name reaches
+     * nobody. Unattended callers that write to the database want this rather than
+     * `suggest()`: a similarity guess nobody confirms records the wrong person.
+     *
+     * @param  Collection<int, Member>  $members
+     */
+    public function resolve(string $name, Collection $members): ?Member
+    {
+        $needle = mb_strtolower(trim($name));
+
+        if ($needle === '') {
+            return null;
+        }
+
+        $normalisedNeedle = $this->normalise($name);
+
+        foreach ($members as $member) {
+            foreach ($this->knownNames($member) as $known) {
+                if ($known === $needle || $this->normalise($known) === $normalisedNeedle) {
+                    return $member;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**

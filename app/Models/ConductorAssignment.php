@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['team_id', 'member_id', 'assigned_on'])]
+#[Fillable(['team_id', 'member_id', 'assigned_on', 'is_mvp'])]
 class ConductorAssignment extends Model
 {
     /** @use HasFactory<ConductorAssignmentFactory> */
@@ -43,6 +43,7 @@ class ConductorAssignment extends Model
     {
         return [
             'assigned_on' => 'immutable_date',
+            'is_mvp' => 'boolean',
         ];
     }
 }

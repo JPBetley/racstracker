@@ -31,6 +31,16 @@ class ConductorAssignmentFactory extends Factory
     }
 
     /**
+     * Mark the day's conductor as the MVP.
+     */
+    public function mvp(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_mvp' => true,
+        ]);
+    }
+
+    /**
      * Record the assignment against a specific day.
      */
     public function on(CarbonInterface $date): static

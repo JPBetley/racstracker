@@ -199,3 +199,110 @@ test('a former name identical to the current name is not repeated in the combobo
 
     expect(substr_count($html, 'Ravager'))->toBe(1);
 });
+
+test('a conductor can be flagged as MVP when assigned', function () {
+    $user = User::factory()->create();
+    $team = $user->currentTeam;
+    $member = Member::factory()->for($team)->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::conductors.index')
+        ->set('memberId', $member->id)
+        ->set('assignedOn', '2026-08-16')
+        ->set('isMvp', true)
+        ->call('saveAssignment')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('conductor_assignments', [
+        'member_id' => $member->id,
+        'is_mvp' => true,
+    ]);
+});
+
+test('an assignment is not MVP by default', function () {
+    $user = User::factory()->create();
+    $team = $user->currentTeam;
+    $member = Member::factory()->for($team)->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::conductors.index')
+        ->set('memberId', $member->id)
+        ->set('assignedOn', '2026-08-16')
+        ->call('saveAssignment')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('conductor_assignments', [
+        'member_id' => $member->id,
+        'is_mvp' => false,
+    ]);
+});
+
+test('editing an assignment loads and keeps its MVP flag', function () {
+    $user = User::factory()->create();
+    $team = $user->currentTeam;
+    $assignment = ConductorAssignment::factory()->for($team)->mvp()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::conductors.index')
+        ->call('editAssignment', $assignment->id)
+        ->assertSet('isMvp', true)
+        ->call('saveAssignment')
+        ->assertHasNoErrors();
+
+    expect($assignment->fresh()->is_mvp)->toBeTrue();
+});
+
+test('the MVP flag can be cleared by editing', function () {
+    $user = User::factory()->create();
+    $team = $user->currentTeam;
+    $assignment = ConductorAssignment::factory()->for($team)->mvp()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::conductors.index')
+        ->call('editAssignment', $assignment->id)
+        ->set('isMvp', false)
+        ->call('saveAssignment')
+        ->assertHasNoErrors();
+
+    expect($assignment->fresh()->is_mvp)->toBeFalse();
+});
+
+test('the MVP flag does not leak from an edited assignment into the next one', function () {
+    $user = User::factory()->create();
+    $team = $user->currentTeam;
+    $mvp = ConductorAssignment::factory()->for($team)->mvp()->on(CarbonImmutable::parse('2026-08-16'))->create();
+    $member = Member::factory()->for($team)->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::conductors.index')
+        ->call('editAssignment', $mvp->id)
+        ->call('saveAssignment')
+        ->call('addAssignment')
+        ->assertSet('isMvp', false)
+        ->set('memberId', $member->id)
+        ->set('assignedOn', '2026-08-17')
+        ->call('saveAssignment')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('conductor_assignments', [
+        'member_id' => $member->id,
+        'is_mvp' => false,
+    ]);
+});
+
+test('an MVP badge is shown on the row and a plain assignment gets none', function () {
+    $user = User::factory()->create();
+    $team = $user->currentTeam;
+    ConductorAssignment::factory()->for($team)->mvp()->on(CarbonImmutable::parse('2026-08-16'))->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::conductors.index')
+        ->assertSeeHtml('data-test="conductor-mvp-badge"')
+        ->assertSee('MVP');
+
+    ConductorAssignment::query()->update(['is_mvp' => false]);
+
+    Livewire::actingAs($user)
+        ->test('pages::conductors.index')
+        ->assertDontSeeHtml('data-test="conductor-mvp-badge"');
+});

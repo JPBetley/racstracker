@@ -47,3 +47,13 @@ test('a member with no aliases still matches on their name', function () {
     expect($this->matcher->suggest('Dark Cities', rosterWithAliases())?->id)
         ->toBe($plain->id);
 });
+
+test('resolve reaches a member through a former name', function () {
+    expect($this->matcher->resolve('whiskey brain', rosterWithAliases())?->id)
+        ->toBe($this->member->id);
+});
+
+test('resolve refuses OCR noise against a former name', function () {
+    expect($this->matcher->resolve('Whiskey Braln', rosterWithAliases()))
+        ->toBeNull();
+});

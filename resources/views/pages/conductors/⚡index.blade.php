@@ -24,6 +24,8 @@ new #[Title('Train Conductor')] class extends Component
 
     public string $assignedOn = '';
 
+    public bool $isMvp = false;
+
     public ?int $editingId = null;
 
     #[Computed]
@@ -85,6 +87,7 @@ new #[Title('Train Conductor')] class extends Component
         $this->editingId = $assignment->id;
         $this->memberId = $assignment->member_id;
         $this->assignedOn = $assignment->assigned_on->toDateString();
+        $this->isMvp = $assignment->is_mvp;
 
         Flux::modal('conductor-form')->show();
     }
@@ -130,10 +133,10 @@ new #[Title('Train Conductor')] class extends Component
 
         if ($this->editingId !== null) {
             $assignment = $team->conductorAssignments()->findOrFail($this->editingId);
-            $updateAssignment->handle($assignment, $member, $assignedOn);
+            $updateAssignment->handle($assignment, $member, $assignedOn, $this->isMvp);
             $message = __('Assignment updated.');
         } else {
-            $createAssignment->handle($team, $member, $assignedOn);
+            $createAssignment->handle($team, $member, $assignedOn, $this->isMvp);
             $message = __('Conductor assigned.');
         }
 
@@ -157,7 +160,7 @@ new #[Title('Train Conductor')] class extends Component
 
     private function resetForm(): void
     {
-        $this->reset('memberId', 'assignedOn', 'editingId');
+        $this->reset('memberId', 'assignedOn', 'isMvp', 'editingId');
         $this->resetValidation();
         unset($this->members);
     }
@@ -198,6 +201,12 @@ new #[Title('Train Conductor')] class extends Component
                                         :initials="strtoupper(substr($assignment->member->name, 0, 1))"
                                     />
                                     {{ $assignment->member->name }}
+
+                                    @if ($assignment->is_mvp)
+                                        <flux:badge size="sm" color="amber" icon="star" data-test="conductor-mvp-badge">
+                                            {{ __('MVP') }}
+                                        </flux:badge>
+                                    @endif
                                 </div>
                             </flux:table.cell>
 
@@ -267,6 +276,13 @@ new #[Title('Train Conductor')] class extends Component
                 </flux:select>
 
                 <flux:date-picker wire:model="assignedOn" :label="__('Date')" with-today data-test="conductor-date-picker" />
+
+                <flux:checkbox
+                    wire:model="isMvp"
+                    :label="__('MVP')"
+                    :description="__('Mark this conductor as the most valuable player for the week.')"
+                    data-test="conductor-mvp-checkbox"
+                />
             </div>
 
             <div class="flex justify-end space-x-2 rtl:space-x-reverse">
