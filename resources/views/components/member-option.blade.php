@@ -6,8 +6,10 @@
     Players rename themselves in game, so someone hunting the roster is as likely to
     type a name the member no longer uses. Flux filters combobox options client side
     on the option's `textContent`, so past names ride along in a hidden span: they
-    match the search without showing in the list or in the trigger, which clones the
-    selected option's markup.
+    match the search without showing in the list.
+
+    The trigger clones the selected option's markup rather than reading its text, so
+    `selected-label` is what keeps those past names out of it once a member is picked.
 --}}
 @php
     $formerNames = $member->aliases
@@ -16,7 +18,7 @@
         ->unique();
 @endphp
 
-<flux:select.option :value="$member->id">
+<flux:select.option :value="$member->id" selected-label="{{ $member->name }}">
     {{ $member->name }}
 
     @if ($formerNames->isNotEmpty())
