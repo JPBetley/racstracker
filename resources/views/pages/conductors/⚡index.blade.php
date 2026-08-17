@@ -56,10 +56,10 @@ new #[Title('Train Conductor')] class extends Component
     #[Computed]
     public function members(): Collection
     {
-        $members = $this->team->roster()->active()->get();
+        $members = $this->team->roster()->active()->with('aliases')->get();
 
         if ($this->memberId !== null && ! $members->contains('id', $this->memberId)) {
-            $assigned = $this->team->roster()->find($this->memberId);
+            $assigned = $this->team->roster()->with('aliases')->find($this->memberId);
 
             if ($assigned !== null) {
                 $members->push($assigned);
@@ -252,9 +252,17 @@ new #[Title('Train Conductor')] class extends Component
             </div>
 
             <div class="space-y-4">
-                <flux:select wire:model="memberId" :label="__('Conductor')" :placeholder="__('Select a member')" data-test="conductor-member-select">
+                <flux:select
+                    variant="combobox"
+                    wire:model="memberId"
+                    :label="__('Conductor')"
+                    :placeholder="__('Select a member')"
+                    :empty="__('No members match that name.')"
+                    clearable
+                    data-test="conductor-member-select"
+                >
                     @foreach ($this->members as $member)
-                        <flux:select.option value="{{ $member->id }}">{{ $member->name }}</flux:select.option>
+                        <x-member-option :member="$member" />
                     @endforeach
                 </flux:select>
 

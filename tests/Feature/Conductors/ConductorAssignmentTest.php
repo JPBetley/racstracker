@@ -2,6 +2,7 @@
 
 use App\Models\ConductorAssignment;
 use App\Models\Member;
+use App\Models\MemberAlias;
 use App\Models\Team;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -173,4 +174,28 @@ test('another team\'s assignment cannot be edited or deleted', function () {
 
     expect(fn () => $component->call('deleteAssignment', $foreign->id))
         ->toThrow(ModelNotFoundException::class);
+});
+
+test('the conductor combobox can be searched by a member\'s former names', function () {
+    $user = User::factory()->create();
+    $team = $user->currentTeam;
+    $member = Member::factory()->for($team)->create(['name' => 'Ravager']);
+    MemberAlias::factory()->for($member)->create(['name' => 'OldRavager']);
+
+    Livewire::actingAs($user)
+        ->test('pages::conductors.index')
+        ->assertSee('autocomplete="strict"', escape: false)
+        ->assertSee('Ravager')
+        ->assertSee('<span hidden>OldRavager</span>', escape: false);
+});
+
+test('a former name identical to the current name is not repeated in the combobox', function () {
+    $user = User::factory()->create();
+    $team = $user->currentTeam;
+    $member = Member::factory()->for($team)->create(['name' => 'Ravager']);
+    MemberAlias::factory()->for($member)->create(['name' => 'Ravager']);
+
+    $html = Livewire::actingAs($user)->test('pages::conductors.index')->html();
+
+    expect(substr_count($html, 'Ravager'))->toBe(1);
 });

@@ -382,10 +382,17 @@ new #[Title('Import VS scores')] class extends Component
                                 </td>
 
                                 <td class="px-3 py-2">
-                                    <flux:select size="sm" wire:model="rows.{{ $index }}.member_id" data-test="vs-review-member-select">
-                                        <flux:select.option value="">{{ __('Skip this row') }}</flux:select.option>
+                                    <flux:select
+                                        variant="combobox"
+                                        size="sm"
+                                        wire:model="rows.{{ $index }}.member_id"
+                                        :placeholder="__('Skip this row')"
+                                        :empty="__('No members match that name.')"
+                                        clearable
+                                        data-test="vs-review-member-select"
+                                    >
                                         @foreach ($this->roster as $member)
-                                            <flux:select.option value="{{ $member->id }}">{{ $member->name }}</flux:select.option>
+                                            <x-member-option :member="$member" />
                                         @endforeach
                                     </flux:select>
 
