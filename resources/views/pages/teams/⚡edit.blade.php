@@ -1,6 +1,8 @@
 <?php
 
+use App\Actions\Imports\StartImport;
 use App\Data\TeamPermissions;
+use App\Enums\ImportType;
 use App\Enums\TeamRole;
 use App\Models\Team;
 use App\Rules\TeamName;
@@ -19,6 +21,8 @@ new class extends Component
 
     public string $teamName = '';
 
+    public string $allianceId = '';
+
     public array $teamData = [];
 
     public array $members = [];
@@ -33,6 +37,7 @@ new class extends Component
     {
         $this->teamModel = $team;
         $this->teamName = $team->name;
+        $this->allianceId = $team->alliance_id ?? '';
 
         $this->populateTeamData();
     }
@@ -60,6 +65,70 @@ new class extends Component
         Flux::toast(variant: 'success', text: __('Team updated.'));
 
         $this->redirectRoute('teams.edit', ['team' => $this->teamModel->fresh()->slug], navigate: true);
+    }
+
+    /**
+     * Save the Last War alliance this team's roster is synced from.
+     */
+    public function updateAlliance(): void
+    {
+        Gate::authorize('update', $this->teamModel);
+
+        $this->allianceId = mb_strtolower(trim($this->allianceId));
+
+        $this->validate([
+            'allianceId' => ['nullable', 'string', 'regex:/^[0-9a-f]{32}$/'],
+        ], [
+            'allianceId.regex' => __('The alliance ID must be 32 hexadecimal characters.'),
+        ]);
+
+        $this->teamModel->update(['alliance_id' => $this->allianceId ?: null]);
+
+        $this->populateTeamData();
+
+        unset($this->canSyncRoster);
+
+        Flux::toast(variant: 'success', text: __('Alliance ID saved.'));
+    }
+
+    /**
+     * Queue the one-off roster sync that seeds a new team from the Last War API.
+     *
+     * This is a setup step only: once the roster exists it is kept current by the
+     * nightly sync, so seeding again is refused rather than re-run.
+     *
+     * The sync runs on the queue because unkeyed API requests are served by a shared
+     * connection pool and can take an unbounded amount of time.
+     */
+    public function syncRoster(StartImport $startImport): void
+    {
+        Gate::authorize('update', $this->teamModel);
+
+        if ($this->teamModel->roster()->exists()) {
+            Flux::toast(variant: 'danger', text: __('This team already has a roster.'));
+
+            return;
+        }
+
+        $allianceId = $this->teamModel->allianceId();
+
+        if (blank($allianceId)) {
+            Flux::toast(variant: 'danger', text: __('Set an alliance ID before syncing the roster.'));
+
+            return;
+        }
+
+        if (blank(config('services.lastwar.key'))) {
+            Flux::toast(variant: 'danger', text: __('No Last War API key is configured.'));
+
+            return;
+        }
+
+        $startImport->handle($this->teamModel, Auth::user(), ImportType::AllianceRoster, [
+            'alliance_id' => $allianceId,
+        ]);
+
+        Flux::toast(variant: 'success', text: __('Roster sync started. Members will appear once it finishes.'));
     }
 
     public function updateMember(int $userId, string $role): void
@@ -134,6 +203,20 @@ new class extends Component
     {
         return Auth::user()->toTeamPermissions($this->teamModel);
     }
+
+    /**
+     * Whether the one-off seeding sync can run.
+     *
+     * It needs an alliance to read, a key to read it with, and an empty roster —
+     * after setup the nightly sync owns keeping the roster current.
+     */
+    #[Computed]
+    public function canSyncRoster(): bool
+    {
+        return filled($this->teamModel->allianceId())
+            && filled(config('services.lastwar.key'))
+            && $this->teamModel->roster()->doesntExist();
+    }
 }; ?>
 
 <section class="w-full">
@@ -160,6 +243,55 @@ new class extends Component
                     </div>
                 @endif
             </div>
+
+            @if ($this->permissions->canUpdateTeam)
+                <div class="space-y-6">
+                    <div>
+                        <flux:heading>{{ __('Alliance roster') }}</flux:heading>
+                        <flux:subheading>{{ __('Seed this team\'s roster from the Last War API. After setup the nightly sync keeps it current.') }}</flux:subheading>
+                    </div>
+
+                    <form wire:submit="updateAlliance" class="space-y-6">
+                        <flux:input
+                            wire:model="allianceId"
+                            :label="__('Alliance ID')"
+                            :description="__('The 32-character hex ID of your alliance, from the Last War API alliance rankings.')"
+                            placeholder="0123456789abcdef0123456789abcdef"
+                            data-test="alliance-id-input"
+                        />
+
+                        <div class="flex items-center gap-2">
+                            <flux:button variant="primary" type="submit" data-test="alliance-save-button">
+                                {{ __('Save') }}
+                            </flux:button>
+
+                            <flux:button
+                                type="button"
+                                variant="filled"
+                                icon="arrow-path"
+                                wire:click="syncRoster"
+                                :disabled="! $this->canSyncRoster"
+                                data-test="alliance-sync-button"
+                            >
+                                <span wire:loading.remove wire:target="syncRoster">{{ __('Sync roster now') }}</span>
+                                <span wire:loading wire:target="syncRoster">{{ __('Starting…') }}</span>
+                            </flux:button>
+                        </div>
+
+                        @unless ($this->canSyncRoster)
+                            <flux:text class="text-sm text-zinc-500 dark:text-zinc-400" data-test="alliance-sync-blocked">
+                                @if ($teamModel->roster()->exists())
+                                    {{ __('This roster is already set up and is kept current by the nightly sync.') }}
+                                @elseif (blank($teamModel->allianceId()))
+                                    {{ __('Save an alliance ID before you can sync the roster.') }}
+                                @else
+                                    {{ __('No Last War API key is configured, so the roster cannot be synced.') }}
+                                @endif
+                            </flux:text>
+                        @endunless
+                    </form>
+                </div>
+            @endif
 
             <div class="space-y-6">
                 <div class="flex items-center justify-between">

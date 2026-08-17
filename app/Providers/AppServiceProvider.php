@@ -2,9 +2,7 @@
 
 namespace App\Providers;
 
-use App\Imports\Ocr\AiVisionRosterScreenshotReader;
 use App\Imports\Ocr\AiVisionVsScoreScreenshotReader;
-use App\Imports\Ocr\Contracts\RosterScreenshotReader;
 use App\Imports\Ocr\Contracts\VsScoreScreenshotReader;
 use App\LastWar\Contracts\LastWarApi;
 use App\LastWar\HttpLastWarApi;
@@ -21,7 +19,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->bind(RosterScreenshotReader::class, AiVisionRosterScreenshotReader::class);
         $this->app->bind(VsScoreScreenshotReader::class, AiVisionVsScoreScreenshotReader::class);
         $this->app->bind(LastWarApi::class, HttpLastWarApi::class);
     }

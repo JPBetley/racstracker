@@ -112,7 +112,7 @@ which had exactly one member at rank 5 and exactly ten at rank 4 — matching th
 
 ## How API code should be written in this app
 
-Mirror the existing `RosterScreenshotReader` pattern — contract, single implementation, container
+Mirror the existing `VsScoreScreenshotReader` pattern — contract, single implementation, container
 binding, faked in tests.
 
 ```
@@ -120,13 +120,13 @@ app/LastWar/Contracts/LastWarApi.php   interface with array-shape PHPDoc returns
 app/LastWar/HttpLastWarApi.php         Http::-based implementation
 ```
 
-- **Bind in `AppServiceProvider::register()`**, next to the existing `RosterScreenshotReader` binding.
+- **Bind in `AppServiceProvider::register()`**, next to the existing `VsScoreScreenshotReader` binding.
   The contract is what tests fake — depend on the interface everywhere else.
 - **Use the framework's `Http` facade.** Do not add Saloon or any other HTTP package; new dependencies
   need approval per `CLAUDE.md`.
-- **Read `config()` at call time**, not in the constructor — see `AiVisionRosterScreenshotReader`.
+- **Read `config()` at call time**, not in the constructor — see `AiVisionVsScoreScreenshotReader`.
 - **Return typed arrays with array-shape PHPDoc**, not DTO classes. This app has no DTOs for import
-  data; `RosterScreenshotReader` returns `array<int, array{name: string, position: string}>`.
+  data; `VsScoreScreenshotReader` returns `array<int, array{rank: int, name: string, points: int}>`.
 - **Let errors bubble.** The `Import` model already records failures through `markFailed()`; don't
   swallow exceptions in the client.
 - **Ingest belongs in the existing import pipeline**: a new `ImportType` case with its own
@@ -137,12 +137,12 @@ app/LastWar/HttpLastWarApi.php         Http::-based implementation
 
 ## Schema gaps to raise before ingesting
 
-The existing tables were designed around screenshot data and don't yet fit the API. Flag these rather
-than working around them silently:
+The tables were designed around screenshot data. One gap is closed, one remains — flag the remaining
+one rather than working around it silently:
 
-- **`members` has no column for the API's `uid`.** Identity is currently the name string, which is why
-  `RosterNameMatcher` does fuzzy matching. The API provides a stable ID that would make matching exact
-  — but that needs a migration.
-- **`scores` has no metric-type column.** It stores one `points` integer per member per day, while the
-  API offers daily VS score, season VS score, power, and army kills. Don't overload `points` with
+- **`members.uid` exists** (nullable, unique per team, added alongside `is_active`), so API-sourced
+  rosters match on the stable ID. `RosterNameMatcher` still exists for the screenshot-sourced VS score
+  path, where only a name is available.
+- **`scores` has no metric-type column.** It stores one `points` integer per member per week, while
+  the API offers daily VS score, season VS score, power, and army kills. Don't overload `points` with
   different metrics; propose a migration instead.

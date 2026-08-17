@@ -10,6 +10,7 @@ use App\Models\Import;
 use App\Models\Member;
 use App\Models\Team;
 use App\Models\User;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Queue;
 
 /**
@@ -148,4 +149,85 @@ it('marks the import failed when the api errors', function () {
         ->toThrow(LastWarApiException::class);
 
     expect($team->roster()->count())->toBe(0);
+});
+
+it('queues a nightly import for every team with its own alliance id', function () {
+    Queue::fake();
+
+    $first = teamWithOwner(['slug' => 'racs', 'alliance_id' => str_repeat('a', 32)]);
+    $second = teamWithOwner(['slug' => 'nova', 'alliance_id' => str_repeat('b', 32)]);
+
+    $this->artisan('import:alliance-rosters')
+        ->expectsOutputToContain('Queued 2 alliance roster import(s).')
+        ->assertSuccessful();
+
+    expect(Import::pluck('team_id')->all())->toEqualCanonicalizing([$first->id, $second->id])
+        ->and(Import::pluck('payload')->pluck('alliance_id')->all())
+        ->toEqualCanonicalizing([str_repeat('a', 32), str_repeat('b', 32)]);
+
+    Queue::assertPushed(SyncAllianceMembers::class, 2);
+});
+
+it('skips teams without an alliance id of their own, ignoring the config fallback', function () {
+    Queue::fake();
+
+    // The fallback exists to drive a single-team install from the environment. Applying
+    // it to a nightly sweep would point every unconfigured team at the same alliance.
+    config()->set('services.lastwar.alliance_id', str_repeat('c', 32));
+
+    $configured = teamWithOwner(['slug' => 'racs', 'alliance_id' => str_repeat('a', 32)]);
+    teamWithOwner(['slug' => 'nova', 'alliance_id' => null]);
+
+    $this->artisan('import:alliance-rosters')
+        ->expectsOutputToContain('Queued 1 alliance roster import(s).')
+        ->assertSuccessful();
+
+    expect(Import::sole()->team_id)->toBe($configured->id);
+});
+
+it('skips a team that has no owner to attribute the import to', function () {
+    Queue::fake();
+
+    Team::factory()->create(['slug' => 'ownerless', 'alliance_id' => str_repeat('a', 32)]);
+
+    $this->artisan('import:alliance-rosters')
+        ->expectsOutputToContain('Skipped team [ownerless]')
+        ->expectsOutputToContain('Queued 0 alliance roster import(s).')
+        ->assertSuccessful();
+
+    expect(Import::count())->toBe(0);
+});
+
+it('reports when no team is configured to sync', function () {
+    Queue::fake();
+
+    config()->set('services.lastwar.alliance_id', null);
+    teamWithOwner(['slug' => 'racs', 'alliance_id' => null]);
+
+    $this->artisan('import:alliance-rosters')
+        ->expectsOutputToContain('No teams have an alliance ID configured.')
+        ->assertSuccessful();
+
+    expect(Import::count())->toBe(0);
+});
+
+it('fails the nightly sweep when no api key is configured', function () {
+    Queue::fake();
+
+    config()->set('services.lastwar.key', null);
+    teamWithOwner(['slug' => 'racs', 'alliance_id' => str_repeat('a', 32)]);
+
+    $this->artisan('import:alliance-rosters')
+        ->expectsOutputToContain('No Last War API key configured')
+        ->assertFailed();
+
+    expect(Import::count())->toBe(0);
+});
+
+it('schedules the nightly roster sweep', function () {
+    $events = collect(app(Schedule::class)->events())
+        ->filter(fn ($event) => str_contains($event->command ?? '', 'import:alliance-rosters'));
+
+    expect($events)->toHaveCount(1)
+        ->and($events->first()->expression)->toBe('0 3 * * *');
 });

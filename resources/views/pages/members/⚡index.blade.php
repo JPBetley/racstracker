@@ -125,16 +125,6 @@ new #[Title('Members')] class extends Component
         </div>
 
         <div class="flex items-center gap-2">
-            <flux:button
-                :href="route('members.import')"
-                wire:navigate
-                variant="filled"
-                icon="photo"
-                data-test="member-import-button"
-            >
-                {{ __('Import from screenshots') }}
-            </flux:button>
-
             <flux:button variant="primary" icon="plus" wire:click="addMember" data-test="member-add-button">
                 {{ __('Add member') }}
             </flux:button>
