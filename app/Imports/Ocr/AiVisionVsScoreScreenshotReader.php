@@ -4,12 +4,13 @@ namespace App\Imports\Ocr;
 
 use App\Ai\Agents\VsScoreScreenshotExtractor;
 use App\Imports\Ocr\Contracts\VsScoreScreenshotReader;
+use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Files;
 use Normalizer;
 
 /**
- * Reads VS "Weekly Rank" screenshots with Claude via the Laravel AI SDK.
+ * Reads VS ranking screenshots with Claude via the Laravel AI SDK.
  *
  * Every screenshot goes into a single prompt, so the model can de-duplicate the
  * overlapping scroll captures itself. The model to use comes from config/vs.php.
@@ -28,7 +29,7 @@ class AiVisionVsScoreScreenshotReader implements VsScoreScreenshotReader
         }
 
         $response = (new VsScoreScreenshotExtractor)->prompt(
-            'Extract the weekly VS leaderboard from these ranking screenshots.',
+            'Extract the VS leaderboard from these ranking screenshots.',
             attachments: array_map(
                 fn (string $path) => Files\Image::fromPath($path),
                 array_values($imagePaths),
@@ -37,7 +38,20 @@ class AiVisionVsScoreScreenshotReader implements VsScoreScreenshotReader
             model: config('vs.ocr.model'),
         );
 
-        return $this->normalise($response['rows'] ?? []);
+        $rows = $this->normalise($response['rows'] ?? []);
+
+        Log::debug('VS OCR read screenshots.', [
+            'screenshots' => count($imagePaths),
+            'rows' => count($rows),
+        ]);
+
+        // An empty read is indistinguishable from a clean run downstream, so capture
+        // what the model actually said rather than leaving it to be guessed at later.
+        if ($rows === []) {
+            Log::debug('VS OCR returned no rows.', ['raw' => $response['rows'] ?? null]);
+        }
+
+        return $rows;
     }
 
     /**

@@ -43,4 +43,16 @@ class ParseVsScoreScreenshots implements ShouldQueue
             app(FailImport::class)->handle($this->import->id, $e);
         }
     }
+
+    /**
+     * Record the failure when the job dies outside handle()'s own try/catch.
+     *
+     * Dependency resolution happens before handle() runs, so a missing container
+     * binding — or a timeout, or exhausted retries — would otherwise leave the import
+     * stuck at "processing" behind a spinner that never resolves.
+     */
+    public function failed(Throwable $e): void
+    {
+        app(FailImport::class)->handle($this->import->id, $e);
+    }
 }

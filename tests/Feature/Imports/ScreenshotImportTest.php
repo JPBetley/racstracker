@@ -62,6 +62,17 @@ test('the parse job records a failure when OCR throws', function () {
         ->and($import->error)->toBe('ocr exploded');
 });
 
+test('the parse job records a failure when the job dies before handle runs', function () {
+    // Dependency resolution happens outside handle()'s try/catch, so without this hook
+    // a stale queue worker leaves the import stuck at "processing" behind a spinner.
+    $import = Import::factory()->processing()->create();
+
+    (new ParseRosterScreenshots($import))->failed(new RuntimeException('container exploded'));
+
+    expect($import->refresh()->status)->toBe(ImportStatus::Failed)
+        ->and($import->error)->toBe('container exploded');
+});
+
 test('screenshots can be uploaded, reviewed, and imported into the roster', function () {
     Storage::fake('local');
     fakeRosterReader([

@@ -90,6 +90,31 @@ test('the parse job records a failure when OCR throws', function () {
         ->and($import->error)->toBe('ocr exploded');
 });
 
+test('the parse job records a failure when the job dies before handle runs', function () {
+    // Dependency resolution happens outside handle()'s try/catch, so a stale queue
+    // worker missing the reader binding once left imports stuck at "processing".
+    $import = Import::factory()->vsScores()->processing()->create();
+
+    (new ParseVsScoreScreenshots($import))->failed(new RuntimeException('container exploded'));
+
+    expect($import->refresh()->status)->toBe(ImportStatus::Failed)
+        ->and($import->error)->toBe('container exploded');
+});
+
+test('the review page explains an empty draft instead of showing a bare row', function () {
+    Storage::fake('local');
+    [$user] = vsImportActor();
+
+    fakeVsScoreReader([]);
+
+    Livewire::actingAs($user)
+        ->test('pages::scores.import')
+        ->set('screenshots', [UploadedFile::fake()->image('vs-1.png')])
+        ->call('startParse')
+        ->assertSet('rows', [])
+        ->assertSee('No scores were read from those screenshots');
+});
+
 test('screenshots can be uploaded, matched to members, and imported as weekly scores', function () {
     Storage::fake('local');
     [$user, $team] = vsImportActor();

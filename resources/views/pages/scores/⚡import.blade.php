@@ -415,8 +415,13 @@ new #[Title('Import VS scores')] class extends Component
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="px-4 py-8 text-center">
-                                    <flux:text class="text-zinc-500 dark:text-zinc-400">{{ __('No scores were read. Add rows manually or try clearer screenshots.') }}</flux:text>
+                                <td colspan="5" class="px-4 py-6" data-test="vs-review-empty">
+                                    <flux:callout variant="warning" icon="exclamation-triangle">
+                                        <flux:callout.heading>{{ __('No scores were read from those screenshots') }}</flux:callout.heading>
+                                        <flux:callout.text>
+                                            {{ __('The screenshots were read successfully but contained no leaderboard rows. Common causes: they capture a screen other than the VS ranking list, the rows are cropped or blurred, or the list had not loaded yet. Check the captures and try again, or add rows manually below.') }}
+                                        </flux:callout.text>
+                                    </flux:callout>
                                 </td>
                             </tr>
                         @endforelse

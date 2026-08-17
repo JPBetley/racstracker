@@ -68,6 +68,16 @@ test('it sends every screenshot to the configured Claude model in a single reque
     );
 });
 
+test('the prompt does not instruct the model to withhold rows', function () {
+    // The agent once told the model to return nothing for a Daily Rank capture, which
+    // surfaced as a silently empty review table. The app stores one score per week and
+    // does not care which tab was captured, so no rule may suppress rows.
+    $instructions = (new VsScoreScreenshotExtractor)->instructions();
+
+    expect($instructions)->toContain('Never withhold rows')
+        ->and($instructions)->not->toContain('return no rows');
+});
+
 test('it returns nothing when given no screenshots and never calls the model', function () {
     VsScoreScreenshotExtractor::fake()->preventStrayPrompts();
 

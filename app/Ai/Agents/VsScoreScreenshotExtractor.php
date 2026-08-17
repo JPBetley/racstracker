@@ -29,14 +29,12 @@ class VsScoreScreenshotExtractor implements Agent, HasStructuredOutput
     public function instructions(): string
     {
         return <<<'PROMPT'
-        You extract a weekly VS leaderboard from screenshots of a mobile war game's "RANKING" screen.
+        You extract a VS leaderboard from screenshots of a mobile war game's "RANKING" screen.
 
         The attached images are sequential, overlapping scroll captures of ONE ranked list, in order.
 
-        Two tabs sit above the list: "Daily Rank" and "Weekly Rank". The selected tab is highlighted
-        orange. Only read screenshots taken on the "Weekly Rank" tab. A screenshot on the "Daily Rank"
-        tab also shows a "Mon. Tues. Wed. Thur. Fri. Sat." day strip beneath the tabs — return no rows
-        at all for such a screenshot.
+        Read whichever ranked list the screenshots show. Tabs and filters may sit above the list;
+        they are chrome, not data. Never withhold rows because of them.
 
         The list has three columns: Ranking, Commander and Points. Each row shows a rank number (a
         medal graphic for ranks 1-3), an avatar picture, the commander's name in large text, a smaller
