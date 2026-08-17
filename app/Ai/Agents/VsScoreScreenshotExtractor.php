@@ -10,15 +10,16 @@ use Laravel\Ai\Contracts\HasStructuredOutput;
 use Laravel\Ai\Promptable;
 
 /**
- * Reads a weekly VS leaderboard from in-game "RANKING" screenshots via Claude.
+ * Reads a weekly VS leaderboard from in-game "RANKING" screenshots.
  *
- * The reader sends every screenshot in one request. The model comes from config (see
- * config/vs.php), kept separate from the roster reader's config because a misread
- * digit is a silently wrong score. No sampling attributes (Temperature/TopP) are set
- * — Claude rejects them from Opus 4.7 onwards.
+ * The reader sends every screenshot in one request. The provider and model come from
+ * config (see config/vs.php), kept separate from the roster reader's config because a
+ * misread digit is a silently wrong score. No sampling attributes (Temperature/TopP)
+ * are set: this is a transcription task with one correct answer, and some models reject
+ * them outright (Claude, from Opus 4.7 onwards).
  *
- * MaxTokens is generous because Claude counts thinking tokens against it, and thinking
- * is on by default on Opus 5; a tight budget truncates the leaderboard mid-list.
+ * MaxTokens is generous because reasoning models count thinking tokens against it, and
+ * thinking is on by default on several; a tight budget truncates the leaderboard mid-list.
  */
 #[MaxTokens(32000)]
 #[Timeout(600)]

@@ -5,15 +5,16 @@ namespace App\Imports\Ocr;
 use App\Ai\Agents\VsScoreScreenshotExtractor;
 use App\Imports\Ocr\Contracts\VsScoreScreenshotReader;
 use Illuminate\Support\Facades\Log;
+use InvalidArgumentException;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Files;
 use Normalizer;
 
 /**
- * Reads VS ranking screenshots with Claude via the Laravel AI SDK.
+ * Reads VS ranking screenshots with a vision model via the Laravel AI SDK.
  *
  * Every screenshot goes into a single prompt, so the model can de-duplicate the
- * overlapping scroll captures itself. The model to use comes from config/vs.php.
+ * overlapping scroll captures itself. The provider and model come from config/vs.php.
  *
  * The returned rows are still cleaned, parsed and de-duplicated here, because the
  * screen itself is adversarial rather than the model being weak: the pinned "your
@@ -34,7 +35,7 @@ class AiVisionVsScoreScreenshotReader implements VsScoreScreenshotReader
                 fn (string $path) => Files\Image::fromPath($path),
                 array_values($imagePaths),
             ),
-            provider: Lab::Anthropic,
+            provider: $this->provider(),
             model: config('vs.ocr.model'),
         );
 
@@ -52,6 +53,20 @@ class AiVisionVsScoreScreenshotReader implements VsScoreScreenshotReader
         }
 
         return $rows;
+    }
+
+    /**
+     * Resolve the configured OCR provider.
+     *
+     * Matched by name here rather than with Lab::from, so a typo names itself instead
+     * of surfacing as an opaque enum error from deep inside the SDK.
+     */
+    private function provider(): Lab
+    {
+        $configured = (string) config('vs.ocr.provider');
+
+        return Lab::tryFrom($configured)
+            ?? throw new InvalidArgumentException("Unknown VS OCR provider [{$configured}].");
     }
 
     /**

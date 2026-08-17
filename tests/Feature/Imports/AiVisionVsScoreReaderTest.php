@@ -48,9 +48,11 @@ test('it keeps the base letter of a decorated Latin name but drops other scripts
     expect(array_column($rows, 'name'))->toBe(['666', 'epoman46', 'Good Luck', 'Beefaroni']);
 });
 
-test('it sends every screenshot to the configured Claude model in a single request', function () {
-    // Deliberately not a real model name: it cannot collide with the config default,
-    // so the assertion proves the configured value is what actually reaches the prompt.
+test('it sends every screenshot to the configured provider and model in a single request', function () {
+    // Neither value is the config default — the default provider is gemini and the model
+    // is deliberately not real — so the assertion can only pass if the configured values
+    // are what actually reach the prompt.
+    config()->set('vs.ocr.provider', 'anthropic');
     config()->set('vs.ocr.model', 'claude-model-under-test');
 
     VsScoreScreenshotExtractor::fake(fn () => ['rows' => []]);
@@ -60,12 +62,24 @@ test('it sends every screenshot to the configured Claude model in a single reque
         base_path('tests/stubs/vs/vs-2.png'),
     ]);
 
-    // The provider is pinned to Anthropic in the reader; only the model is configurable.
     VsScoreScreenshotExtractor::assertPrompted(
         fn ($prompt) => $prompt->model === 'claude-model-under-test'
             && $prompt->provider->driver() === 'anthropic'
             && $prompt->attachments->count() === 2
     );
+});
+
+test('it rejects an unknown provider by name before spending a request', function () {
+    // Provider and model are set together by hand, so a typo is the likely mistake. It
+    // has to name itself here rather than surfacing as a ValueError inside the SDK.
+    config()->set('vs.ocr.provider', 'gemeni');
+
+    VsScoreScreenshotExtractor::fake()->preventStrayPrompts();
+
+    expect(fn () => (new AiVisionVsScoreScreenshotReader)->read([base_path('tests/stubs/vs/vs-1.png')]))
+        ->toThrow(InvalidArgumentException::class, 'Unknown VS OCR provider [gemeni].');
+
+    VsScoreScreenshotExtractor::assertNeverPrompted();
 });
 
 test('the prompt does not instruct the model to withhold rows', function () {

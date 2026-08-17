@@ -59,6 +59,52 @@ test('it reports the exact discrepancy when the reader misreads a total', functi
         ->assertSuccessful();
 });
 
+test('the --provider and --model options reach the reader for the run', function () {
+    // The whole point of the options is A/B-ing two backends without editing .env, so
+    // what matters is that the reader sees the override at the moment it reads.
+    $seen = new ArrayObject;
+
+    app()->bind(VsScoreScreenshotReader::class, fn (): VsScoreScreenshotReader => new class($seen) implements VsScoreScreenshotReader
+    {
+        public function __construct(private ArrayObject $seen) {}
+
+        public function read(array $imagePaths): array
+        {
+            $this->seen['provider'] = config('vs.ocr.provider');
+            $this->seen['model'] = config('vs.ocr.model');
+
+            return vsGroundTruth();
+        }
+    });
+
+    $this->artisan('vs:ocr-check', [
+        'dir' => 'tests/stubs/vs',
+        '--provider' => 'gemini',
+        '--model' => 'gemini-model-under-test',
+    ])
+        ->expectsOutputToContain('via gemini/gemini-model-under-test')
+        ->assertSuccessful();
+
+    expect($seen->getArrayCopy())->toBe(['provider' => 'gemini', 'model' => 'gemini-model-under-test']);
+});
+
+test('it leaves the configured backend alone when no override is passed', function () {
+    config()->set('vs.ocr.provider', 'anthropic');
+    config()->set('vs.ocr.model', 'claude-model-from-config');
+
+    app()->bind(VsScoreScreenshotReader::class, fn (): VsScoreScreenshotReader => new class implements VsScoreScreenshotReader
+    {
+        public function read(array $imagePaths): array
+        {
+            return vsGroundTruth();
+        }
+    });
+
+    $this->artisan('vs:ocr-check', ['dir' => 'tests/stubs/vs'])
+        ->expectsOutputToContain('via anthropic/claude-model-from-config')
+        ->assertSuccessful();
+});
+
 test('it fails when the fixture directory has no ground truth', function () {
     $this->artisan('vs:ocr-check', ['dir' => 'tests/stubs/team'])
         ->expectsOutputToContain('Expected *.png screenshots and scores.json')

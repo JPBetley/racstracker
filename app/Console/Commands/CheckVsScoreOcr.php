@@ -13,7 +13,10 @@ use Illuminate\Console\Command;
  */
 class CheckVsScoreOcr extends Command
 {
-    protected $signature = 'vs:ocr-check {dir=tests/stubs/vs : Directory of *.png screenshots and a scores.json}';
+    protected $signature = 'vs:ocr-check
+        {dir=tests/stubs/vs : Directory of *.png screenshots and a scores.json}
+        {--provider= : Override the OCR provider for this run, e.g. gemini}
+        {--model= : Override the OCR model for this run, e.g. gemini-flash-latest}';
 
     protected $description = 'Run VS score OCR over a fixture directory and report accuracy against scores.json';
 
@@ -33,9 +36,27 @@ class CheckVsScoreOcr extends Command
         $expected = collect(json_decode((string) file_get_contents($expectedFile), true)['scores'] ?? [])
             ->mapWithKeys(fn (array $row): array => [mb_strtolower($row['name']) => (int) $row['points']]);
 
-        $this->info(sprintf('Reading %d screenshot(s) from %s …', count($images), $dir));
+        // Overriding config rather than the reader keeps the run identical to production;
+        // the reader reads these at read() time, so setting them after injection is fine.
+        foreach (['provider', 'model'] as $key) {
+            if ($this->option($key) !== null) {
+                config()->set("vs.ocr.{$key}", $this->option($key));
+            }
+        }
+
+        // Two runs of this command are only comparable if each says which backend it used.
+        $this->info(sprintf(
+            'Reading %d screenshot(s) from %s via %s/%s …',
+            count($images),
+            $dir,
+            config('vs.ocr.provider'),
+            config('vs.ocr.model'),
+        ));
+
+        $startedAt = microtime(true);
         $parsed = collect($reader->read($images))
             ->mapWithKeys(fn (array $row): array => [mb_strtolower($row['name']) => $row]);
+        $elapsed = microtime(true) - $startedAt;
 
         $matched = 0;
         $wrongPoints = [];
@@ -74,6 +95,8 @@ class CheckVsScoreOcr extends Command
             ['Name match, wrong points', count($wrongPoints)],
             ['Missing (not parsed)', count($missing)],
             ['Extra (not expected)', $extra->count()],
+            // A free model is only the better trade if it is not unusably slow.
+            ['Elapsed (seconds)', round($elapsed, 1)],
         ]);
 
         $accuracy = $expected->count() > 0 ? round($matched / $expected->count() * 100, 1) : 0.0;
