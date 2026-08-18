@@ -17,6 +17,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
+use Laravel\Ai\Exceptions\ProviderOverloadedException;
 use Livewire\Livewire;
 
 // 2025-01-06 is a Monday, so it is the start of the VS week.
@@ -35,7 +36,7 @@ function fakeVsScoreReader(array $rows): void
     {
         public function __construct(private array $rows) {}
 
-        public function read(array $imagePaths): array
+        public function read(array $imagePaths, ?string $disk = null): array
         {
             return $this->rows;
         }
@@ -74,7 +75,7 @@ test('the parse job stores a draft and parks the import for review', function ()
 test('the parse job records a failure when OCR throws', function () {
     app()->bind(VsScoreScreenshotReader::class, fn (): VsScoreScreenshotReader => new class implements VsScoreScreenshotReader
     {
-        public function read(array $imagePaths): array
+        public function read(array $imagePaths, ?string $disk = null): array
         {
             throw new RuntimeException('ocr exploded');
         }
@@ -99,6 +100,77 @@ test('the parse job records a failure when the job dies before handle runs', fun
 
     expect($import->refresh()->status)->toBe(ImportStatus::Failed)
         ->and($import->error)->toBe('container exploded');
+});
+
+test('screenshots are stored on the configured disk, not a hardcoded local one', function () {
+    // In production the OCR runs on a queue worker with its own empty filesystem, so
+    // the upload has to land on whatever shared disk is configured rather than on the
+    // web machine's local storage. Faking a disk that is not "local" is the only way
+    // this stays true — the two are indistinguishable when the default is local.
+    config()->set('filesystems.default', 'shared');
+    Storage::fake('shared');
+
+    [$user] = vsImportActor();
+    fakeVsScoreReader([]);
+
+    Livewire::actingAs($user)
+        ->test('pages::scores.import')
+        ->set('screenshots', [UploadedFile::fake()->image('vs-1.png')])
+        ->call('startParse')
+        ->assertHasNoErrors();
+
+    $stored = Storage::disk('shared')->files('imports');
+
+    expect($stored)->toHaveCount(1);
+});
+
+test('the parse job hands the reader disk paths rather than filesystem paths', function () {
+    // Storage::disk()->path() would resolve to a directory that does not exist on the
+    // worker; the reader has to receive the stored path untouched so it can read it
+    // back off the disk itself.
+    $seen = new ArrayObject;
+
+    app()->bind(VsScoreScreenshotReader::class, fn (): VsScoreScreenshotReader => new class($seen) implements VsScoreScreenshotReader
+    {
+        public function __construct(private ArrayObject $seen) {}
+
+        public function read(array $imagePaths, ?string $disk = null): array
+        {
+            $this->seen['paths'] = $imagePaths;
+
+            return [];
+        }
+    });
+
+    $import = Import::factory()->vsScores()->processing()->create([
+        'payload' => ['week_start' => '2025-01-06', 'screenshots' => ['imports/a.png', 'imports/b.png']],
+    ]);
+
+    (new ParseVsScoreScreenshots($import))->handle(app(VsScoreScreenshotReader::class));
+
+    expect($seen['paths'])->toBe(['imports/a.png', 'imports/b.png']);
+});
+
+test('the parse job leaves an overloaded provider to the queue rather than failing the import', function () {
+    // An overloaded vision provider has said nothing about the screenshots, so the
+    // import is not failed — it is retried. Marking it failed here would strand the
+    // user on "we could not read those screenshots" for a transient rate limit.
+    app()->bind(VsScoreScreenshotReader::class, fn (): VsScoreScreenshotReader => new class implements VsScoreScreenshotReader
+    {
+        public function read(array $imagePaths, ?string $disk = null): array
+        {
+            throw ProviderOverloadedException::forProvider('gemini');
+        }
+    });
+
+    $import = Import::factory()->vsScores()->processing()->create([
+        'payload' => ['week_start' => '2025-01-06', 'screenshots' => ['imports/a.png']],
+    ]);
+
+    expect(fn () => (new ParseVsScoreScreenshots($import))->handle(app(VsScoreScreenshotReader::class)))
+        ->toThrow(ProviderOverloadedException::class);
+
+    expect($import->refresh()->status)->toBe(ImportStatus::Processing);
 });
 
 test('the review page explains an empty draft instead of showing a bare row', function () {

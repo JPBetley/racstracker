@@ -53,8 +53,13 @@ class CheckVsScoreOcr extends Command
             config('vs.ocr.model'),
         ));
 
+        // The reader reads from a disk, not from the filesystem, so the fixture directory
+        // is registered as one for the run. This keeps the harness on the exact code path
+        // production uses rather than a local-path shortcut that only exists here.
+        config()->set('filesystems.disks.vs-fixtures', ['driver' => 'local', 'root' => realpath($dir)]);
+
         $startedAt = microtime(true);
-        $parsed = collect($reader->read($images))
+        $parsed = collect($reader->read(array_map(basename(...), $images), 'vs-fixtures'))
             ->mapWithKeys(fn (array $row): array => [mb_strtolower($row['name']) => $row]);
         $elapsed = microtime(true) - $startedAt;
 

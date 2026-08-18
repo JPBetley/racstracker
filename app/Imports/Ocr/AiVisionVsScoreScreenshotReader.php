@@ -23,7 +23,7 @@ use Normalizer;
  */
 class AiVisionVsScoreScreenshotReader implements VsScoreScreenshotReader
 {
-    public function read(array $imagePaths): array
+    public function read(array $imagePaths, ?string $disk = null): array
     {
         if ($imagePaths === []) {
             return [];
@@ -32,7 +32,7 @@ class AiVisionVsScoreScreenshotReader implements VsScoreScreenshotReader
         $response = (new VsScoreScreenshotExtractor)->prompt(
             'Extract the VS leaderboard from these ranking screenshots.',
             attachments: array_map(
-                fn (string $path) => Files\Image::fromPath($path),
+                fn (string $path) => Files\Image::fromStorage($path, $disk),
                 array_values($imagePaths),
             ),
             provider: $this->provider(),

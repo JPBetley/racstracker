@@ -11,6 +11,17 @@ abstract class ImportStep implements ShouldQueue
     use Queueable;
 
     /**
+     * How long a single attempt may run.
+     *
+     * A step that calls the Last War API can spend 30s per request, and the client
+     * retries twice on top of that, so the default 60s worker timeout would kill a
+     * healthy sync mid-flight.
+     */
+    public int $timeout = 300;
+
+    public int $tries = 3;
+
+    /**
      * Create a new step instance.
      */
     public function __construct(public Import $import)

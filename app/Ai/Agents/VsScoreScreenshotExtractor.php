@@ -20,9 +20,13 @@ use Laravel\Ai\Promptable;
  *
  * MaxTokens is generous because reasoning models count thinking tokens against it, and
  * thinking is on by default on several; a tight budget truncates the leaderboard mid-list.
+ *
+ * Timeout is sized off the measured worst case: a full twelve-screenshot import reads in
+ * roughly 30-40s on gemini-flash-latest (`php artisan vs:ocr-check`). Three minutes leaves
+ * generous headroom while still failing fast enough for the queue to retry a stalled call.
  */
 #[MaxTokens(32000)]
-#[Timeout(600)]
+#[Timeout(180)]
 class VsScoreScreenshotExtractor implements Agent, HasStructuredOutput
 {
     use Promptable;

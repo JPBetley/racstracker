@@ -93,8 +93,11 @@ new #[Title('Import VS scores')] class extends Component
             'screenshots.*' => ['image', 'max:10240'],
         ]);
 
+        // Stored on the default disk rather than a named one: the OCR runs on the queue,
+        // which in production is a different machine with its own empty filesystem, so
+        // the screenshots have to land somewhere both processes can reach.
         $paths = array_map(
-            fn ($file): string => $file->store('imports', 'local'),
+            fn ($file): string => $file->store('imports'),
             $this->screenshots,
         );
 

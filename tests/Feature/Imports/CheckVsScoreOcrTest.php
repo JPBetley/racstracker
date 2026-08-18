@@ -29,7 +29,7 @@ test('the ground truth fixture covers every commander exactly once', function ()
 test('it reports full accuracy when the reader matches the ground truth', function () {
     app()->bind(VsScoreScreenshotReader::class, fn (): VsScoreScreenshotReader => new class implements VsScoreScreenshotReader
     {
-        public function read(array $imagePaths): array
+        public function read(array $imagePaths, ?string $disk = null): array
         {
             return vsGroundTruth();
         }
@@ -43,7 +43,7 @@ test('it reports full accuracy when the reader matches the ground truth', functi
 test('it reports the exact discrepancy when the reader misreads a total', function () {
     app()->bind(VsScoreScreenshotReader::class, fn (): VsScoreScreenshotReader => new class implements VsScoreScreenshotReader
     {
-        public function read(array $imagePaths): array
+        public function read(array $imagePaths, ?string $disk = null): array
         {
             $rows = vsGroundTruth();
 
@@ -68,7 +68,7 @@ test('the --provider and --model options reach the reader for the run', function
     {
         public function __construct(private ArrayObject $seen) {}
 
-        public function read(array $imagePaths): array
+        public function read(array $imagePaths, ?string $disk = null): array
         {
             $this->seen['provider'] = config('vs.ocr.provider');
             $this->seen['model'] = config('vs.ocr.model');
@@ -94,7 +94,7 @@ test('it leaves the configured backend alone when no override is passed', functi
 
     app()->bind(VsScoreScreenshotReader::class, fn (): VsScoreScreenshotReader => new class implements VsScoreScreenshotReader
     {
-        public function read(array $imagePaths): array
+        public function read(array $imagePaths, ?string $disk = null): array
         {
             return vsGroundTruth();
         }

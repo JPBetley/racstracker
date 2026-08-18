@@ -3,6 +3,17 @@
 use App\Ai\Agents\VsScoreScreenshotExtractor;
 use App\Imports\Ocr\AiVisionVsScoreScreenshotReader;
 
+/**
+ * Register the committed captures as a disk, mirroring how the reader is fed in
+ * production: disk-relative paths, never a local filesystem path.
+ */
+beforeEach(function () {
+    config()->set('filesystems.disks.vs-fixtures', [
+        'driver' => 'local',
+        'root' => base_path('tests/stubs/vs'),
+    ]);
+});
+
 test('it parses points, cleans names, and de-duplicates the rows returned by the vision agent', function () {
     VsScoreScreenshotExtractor::fake(fn () => [
         'rows' => [
@@ -16,10 +27,7 @@ test('it parses points, cleans names, and de-duplicates the rows returned by the
         ],
     ]);
 
-    $rows = (new AiVisionVsScoreScreenshotReader)->read([
-        base_path('tests/stubs/vs/vs-1.png'),
-        base_path('tests/stubs/vs/vs-2.png'),
-    ]);
+    $rows = (new AiVisionVsScoreScreenshotReader)->read(['vs-1.png', 'vs-2.png'], 'vs-fixtures');
 
     expect($rows)->toBe([
         ['rank' => 1, 'name' => 'Femme de Fatale', 'points' => 59882250],
@@ -43,7 +51,7 @@ test('it keeps the base letter of a decorated Latin name but drops other scripts
         ],
     ]);
 
-    $rows = (new AiVisionVsScoreScreenshotReader)->read([base_path('tests/stubs/vs/vs-1.png')]);
+    $rows = (new AiVisionVsScoreScreenshotReader)->read(['vs-1.png'], 'vs-fixtures');
 
     expect(array_column($rows, 'name'))->toBe(['666', 'epoman46', 'Good Luck', 'Beefaroni']);
 });
@@ -57,10 +65,7 @@ test('it sends every screenshot to the configured provider and model in a single
 
     VsScoreScreenshotExtractor::fake(fn () => ['rows' => []]);
 
-    (new AiVisionVsScoreScreenshotReader)->read([
-        base_path('tests/stubs/vs/vs-1.png'),
-        base_path('tests/stubs/vs/vs-2.png'),
-    ]);
+    (new AiVisionVsScoreScreenshotReader)->read(['vs-1.png', 'vs-2.png'], 'vs-fixtures');
 
     VsScoreScreenshotExtractor::assertPrompted(
         fn ($prompt) => $prompt->model === 'claude-model-under-test'
@@ -76,7 +81,7 @@ test('it rejects an unknown provider by name before spending a request', functio
 
     VsScoreScreenshotExtractor::fake()->preventStrayPrompts();
 
-    expect(fn () => (new AiVisionVsScoreScreenshotReader)->read([base_path('tests/stubs/vs/vs-1.png')]))
+    expect(fn () => (new AiVisionVsScoreScreenshotReader)->read(['vs-1.png'], 'vs-fixtures'))
         ->toThrow(InvalidArgumentException::class, 'Unknown VS OCR provider [gemeni].');
 
     VsScoreScreenshotExtractor::assertNeverPrompted();

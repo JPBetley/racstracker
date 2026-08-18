@@ -15,8 +15,13 @@ interface VsScoreScreenshotReader
      * Which ranking tab was captured is the uploader's responsibility — the app only
      * ever stores one score per member per week, so the reader has no notion of it.
      *
-     * @param  array<int, string>  $imagePaths  Absolute paths to the screenshots, in capture order.
+     * The screenshots are read from a filesystem disk rather than a local path, because
+     * the upload and the OCR run in different processes — and, once deployed, on
+     * different machines with no filesystem between them.
+     *
+     * @param  array<int, string>  $imagePaths  Disk-relative paths to the screenshots, in capture order.
+     * @param  string|null  $disk  The disk holding them, or null for the default disk.
      * @return array<int, array{rank: int, name: string, points: int}>
      */
-    public function read(array $imagePaths): array;
+    public function read(array $imagePaths, ?string $disk = null): array;
 }

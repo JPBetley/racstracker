@@ -9,10 +9,10 @@ return [
     |
     | The vision model used to read VS "Weekly Rank" screenshots.
     |
-    | This mirrors config/roster.php but is configured separately so score
-    | reading can run on a different model than roster reading — score digits are
-    | far less forgiving than positions, so this side may warrant the stronger
-    | model even when the roster does not.
+    | This is configured on its own, rather than sharing one app-wide OCR model,
+    | so score reading can run on a different model than any other reading — score
+    | digits are far less forgiving than positions, so this side may warrant the
+    | stronger model even where the rest does not.
     |
     | provider: a Laravel\Ai\Enums\Lab value, e.g. "anthropic" or "gemini". Each
     |           provider reads its own key: ANTHROPIC_API_KEY from the Claude
