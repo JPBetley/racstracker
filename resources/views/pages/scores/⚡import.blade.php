@@ -86,6 +86,22 @@ new #[Title('Import VS scores')] class extends Component
         return $this->team->roster()->with('aliases')->orderBy('name')->get();
     }
 
+    /**
+     * Drop a screenshot that has been uploaded but not parsed yet.
+     */
+    public function removeScreenshot(int $index): void
+    {
+        if (! isset($this->screenshots[$index])) {
+            return;
+        }
+
+        $this->screenshots[$index]->delete();
+
+        unset($this->screenshots[$index]);
+
+        $this->screenshots = array_values($this->screenshots);
+    }
+
     public function startParse(BeginVsScoreScreenshotImport $beginImport): void
     {
         $this->validate([
@@ -308,22 +324,101 @@ new #[Title('Import VS scores')] class extends Component
             <flux:callout.text>{{ __('Capture the ranking screen with Weekly Rank selected, not Daily Rank. Daily points are a single day, not the week total.') }}</flux:callout.text>
         </flux:callout>
 
-        <form wire:submit="startParse" class="mt-6 space-y-6" data-test="vs-screenshot-upload-form">
+        {{--
+            The picker still takes a whole batch at once, but the files are handed to
+            Livewire one at a time rather than through wire:model. In production the
+            temporary upload disk is S3, whose driver signs a single file per request and
+            rejects a "multiple" upload outright. A single upload into an array property
+            is appended to it, so uploading in sequence fills $screenshots all the same.
+        --}}
+        <form
+            wire:submit="startParse"
+            class="mt-6 space-y-6"
+            data-test="vs-screenshot-upload-form"
+            x-data="{
+                uploading: false,
+                queued: 0,
+                finished: 0,
+                upload(event) {
+                    let files = Array.from(event.target.files);
+
+                    if (files.length === 0) return;
+
+                    // Emptying the picker lets the same file be chosen again after it has
+                    // been removed; the second event resets the name Flux renders beside it.
+                    event.target.value = '';
+                    event.target.dispatchEvent(new Event('change', { bubbles: true }));
+
+                    this.queued = files.length;
+                    this.finished = 0;
+                    this.uploading = true;
+
+                    let next = () => {
+                        let file = files.shift();
+
+                        if (file === undefined) {
+                            this.uploading = false;
+
+                            return;
+                        }
+
+                        // A rejected file leaves its message on the property, so keep going:
+                        // one unreadable screenshot should not strand the rest of the batch.
+                        $wire.$upload('screenshots', file, () => {
+                            this.finished++;
+                            next();
+                        }, () => {
+                            this.finished++;
+                            next();
+                        });
+                    };
+
+                    next();
+                },
+            }"
+            x-on:change="upload($event)"
+        >
             <flux:input
                 type="file"
-                wire:model="screenshots"
                 :label="__('Screenshots')"
                 multiple
                 accept="image/*"
                 data-test="vs-screenshot-input"
             />
 
+            <flux:text x-show="uploading" x-cloak class="text-zinc-500 dark:text-zinc-400" data-test="vs-screenshot-uploading">
+                {{ __('Uploading') }} <span x-text="Math.min(finished + 1, queued)"></span>/<span x-text="queued"></span>…
+            </flux:text>
+
+            @if ($screenshots !== [])
+                <div class="space-y-2" data-test="vs-screenshot-list">
+                    @foreach ($screenshots as $index => $screenshot)
+                        <div
+                            class="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-700"
+                            wire:key="screenshot-{{ $index }}"
+                        >
+                            <flux:text class="truncate">{{ $screenshot->getClientOriginalName() }}</flux:text>
+
+                            <flux:button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                icon="trash"
+                                wire:click="removeScreenshot({{ $index }})"
+                                :aria-label="__('Remove :file', ['file' => $screenshot->getClientOriginalName()])"
+                                data-test="vs-screenshot-remove"
+                            />
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+
             <flux:error name="screenshots" />
 
             <div class="flex justify-end">
-                <flux:button variant="primary" type="submit" icon="sparkles" data-test="vs-screenshot-parse-button">
+                <flux:button variant="primary" type="submit" icon="sparkles" x-bind:disabled="uploading" data-test="vs-screenshot-parse-button">
                     <span wire:loading.remove wire:target="startParse">{{ __('Read screenshots') }}</span>
-                    <span wire:loading wire:target="startParse">{{ __('Uploading…') }}</span>
+                    <span wire:loading wire:target="startParse">{{ __('Starting…') }}</span>
                 </flux:button>
             </div>
         </form>

@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Laravel\Ai\Exceptions\ProviderOverloadedException;
+use Livewire\Features\SupportFileUploads\S3DoesntSupportMultipleFileUploads;
 use Livewire\Livewire;
 
 // 2025-01-06 is a Monday, so it is the start of the VS week.
@@ -445,4 +446,75 @@ test('the scores page links to the import page for the week being viewed', funct
         ->test('pages::scores.index')
         ->call('previousWeek')
         ->assertSee(route('scores.import', ['weekOffset' => -1]), escape: false);
+});
+
+/**
+ * Point Livewire's temporary uploads at a bucket, the way production does.
+ */
+function useS3TemporaryUploads(): void
+{
+    config()->set('filesystems.disks.s3', [
+        'driver' => 's3',
+        'key' => 'test-key',
+        'secret' => 'test-secret',
+        'region' => 'us-east-1',
+        'bucket' => 'test-bucket',
+    ]);
+
+    config()->set('livewire.temporary_file_upload.disk', 's3');
+}
+
+test('the S3 temporary upload disk refuses a multiple upload', function () {
+    // Production keeps temporary uploads in the bucket, and that driver signs one file
+    // per request: handing it a batch throws before a single byte moves. This is what
+    // a plain `wire:model` on a `multiple` input does, so the page must not use one.
+    useS3TemporaryUploads();
+
+    [$user] = vsImportActor();
+
+    Livewire::actingAs($user)
+        ->test('pages::scores.import')
+        ->upload('screenshots', [UploadedFile::fake()->image('vs-1.png')], isMultiple: true);
+})->throws(S3DoesntSupportMultipleFileUploads::class);
+
+test('the upload field is not bound with wire:model', function () {
+    // The binding is what makes Livewire send the whole selection as one multiple
+    // upload. The page uploads a file at a time from Alpine instead.
+    [$user] = vsImportActor();
+
+    Livewire::actingAs($user)
+        ->test('pages::scores.import')
+        ->assertSee('data-test="vs-screenshot-input"', escape: false)
+        ->assertDontSee('wire:model="screenshots"', escape: false);
+});
+
+test('screenshots uploaded one at a time are appended to the batch', function () {
+    [$user] = vsImportActor();
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::scores.import')
+        ->upload('screenshots', [UploadedFile::fake()->image('vs-1.png')])
+        ->upload('screenshots', [UploadedFile::fake()->image('vs-2.png')]);
+
+    expect($component->get('screenshots'))->toHaveCount(2);
+
+    $component->call('startParse')->assertHasNoErrors();
+
+    expect(Import::sole()->payload['screenshots'])->toHaveCount(2);
+});
+
+test('a screenshot can be dropped from the batch before parsing', function () {
+    [$user] = vsImportActor();
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::scores.import')
+        ->upload('screenshots', [UploadedFile::fake()->image('vs-1.png')])
+        ->upload('screenshots', [UploadedFile::fake()->image('vs-2.png')])
+        ->call('removeScreenshot', 0);
+
+    $remaining = $component->get('screenshots');
+
+    expect($remaining)->toHaveCount(1)
+        ->and(array_keys($remaining))->toBe([0])
+        ->and($remaining[0]->getClientOriginalName())->toBe('vs-2.png');
 });
