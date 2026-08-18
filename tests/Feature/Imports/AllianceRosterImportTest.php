@@ -24,6 +24,11 @@ function teamWithOwner(array $attributes = []): Team
     return $team;
 }
 
+beforeEach(function () {
+    config()->set('services.lastwar.key', 'test-key');
+    config()->set('services.lastwar.alliance_id', null);
+});
+
 it('queues an alliance import for the team', function () {
     Queue::fake();
 
