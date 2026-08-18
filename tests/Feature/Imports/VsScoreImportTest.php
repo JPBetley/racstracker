@@ -484,6 +484,7 @@ test('the upload field is not bound with wire:model', function () {
 
     Livewire::actingAs($user)
         ->test('pages::scores.import')
+        ->assertSee('data-flux-file-upload', escape: false)
         ->assertSee('data-test="vs-screenshot-input"', escape: false)
         ->assertDontSee('wire:model="screenshots"', escape: false);
 });
@@ -497,6 +498,11 @@ test('screenshots uploaded one at a time are appended to the batch', function ()
         ->upload('screenshots', [UploadedFile::fake()->image('vs-2.png')]);
 
     expect($component->get('screenshots'))->toHaveCount(2);
+
+    // Each upload is listed for review, with a thumbnail read back off the temporary disk.
+    $component->assertSee('vs-1.png')
+        ->assertSee('vs-2.png')
+        ->assertSee('data-test="vs-screenshot-item"', escape: false);
 
     $component->call('startParse')->assertHasNoErrors();
 

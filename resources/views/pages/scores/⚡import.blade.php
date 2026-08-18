@@ -325,7 +325,7 @@ new #[Title('Import VS scores')] class extends Component
         </flux:callout>
 
         {{--
-            The picker still takes a whole batch at once, but the files are handed to
+            The dropzone still takes a whole batch at once, but the files are handed to
             Livewire one at a time rather than through wire:model. In production the
             temporary upload disk is S3, whose driver signs a single file per request and
             rejects a "multiple" upload outright. A single upload into an array property
@@ -337,78 +337,87 @@ new #[Title('Import VS scores')] class extends Component
             data-test="vs-screenshot-upload-form"
             x-data="{
                 uploading: false,
-                queued: 0,
-                finished: 0,
                 upload(event) {
-                    let files = Array.from(event.target.files);
+                    let picker = event.target;
+                    let files = Array.from(picker.files);
 
                     if (files.length === 0) return;
 
-                    // Emptying the picker lets the same file be chosen again after it has
-                    // been removed; the second event resets the name Flux renders beside it.
-                    event.target.value = '';
-                    event.target.dispatchEvent(new Event('change', { bubbles: true }));
+                    // Flux holds its own copy of the selection for a native form post, which
+                    // this form never makes; what has been uploaded is listed from the
+                    // component instead, so hand the picker back empty for the next batch.
+                    picker.clear();
 
-                    this.queued = files.length;
-                    this.finished = 0;
-                    this.uploading = true;
+                    // Flux draws the dropzone's loading and progress state off these events,
+                    // which Livewire only dispatches for itself when wire:model is bound.
+                    let signal = (name, detail = {}) => picker.dispatchEvent(
+                        new CustomEvent(name, { bubbles: true, detail })
+                    );
+
+                    let total = files.length;
+                    let started = 0;
+                    let failed = 0;
 
                     let next = () => {
                         let file = files.shift();
 
                         if (file === undefined) {
                             this.uploading = false;
+                            signal(failed > 0 ? 'livewire-upload-error' : 'livewire-upload-finish');
 
                             return;
                         }
 
+                        started++;
+
                         // A rejected file leaves its message on the property, so keep going:
                         // one unreadable screenshot should not strand the rest of the batch.
-                        $wire.$upload('screenshots', file, () => {
-                            this.finished++;
+                        $wire.$upload('screenshots', file, () => next(), () => {
+                            failed++;
                             next();
-                        }, () => {
-                            this.finished++;
-                            next();
-                        });
+                        }, (progressEvent) => signal('livewire-upload-progress', {
+                            progress: Math.floor((started - 1 + progressEvent.detail.progress / 100) / total * 100),
+                        }));
                     };
 
+                    this.uploading = true;
+                    signal('livewire-upload-start');
                     next();
                 },
             }"
             x-on:change="upload($event)"
         >
-            <flux:input
-                type="file"
-                :label="__('Screenshots')"
+            <flux:file-upload
                 multiple
                 accept="image/*"
+                :label="__('Screenshots')"
                 data-test="vs-screenshot-input"
-            />
-
-            <flux:text x-show="uploading" x-cloak class="text-zinc-500 dark:text-zinc-400" data-test="vs-screenshot-uploading">
-                {{ __('Uploading') }} <span x-text="Math.min(finished + 1, queued)"></span>/<span x-text="queued"></span>…
-            </flux:text>
+            >
+                <flux:file-upload.dropzone
+                    :heading="__('Drop screenshots here or click to browse')"
+                    :text="__('PNG or JPG, up to 10MB each')"
+                    with-progress
+                />
+            </flux:file-upload>
 
             @if ($screenshots !== [])
                 <div class="space-y-2" data-test="vs-screenshot-list">
                     @foreach ($screenshots as $index => $screenshot)
-                        <div
-                            class="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-700"
+                        <flux:file-item
                             wire:key="screenshot-{{ $index }}"
+                            :heading="$screenshot->getClientOriginalName()"
+                            :image="$screenshot->isPreviewable() ? $screenshot->temporaryUrl() : null"
+                            :size="$screenshot->getSize()"
+                            data-test="vs-screenshot-item"
                         >
-                            <flux:text class="truncate">{{ $screenshot->getClientOriginalName() }}</flux:text>
-
-                            <flux:button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                icon="trash"
-                                wire:click="removeScreenshot({{ $index }})"
-                                :aria-label="__('Remove :file', ['file' => $screenshot->getClientOriginalName()])"
-                                data-test="vs-screenshot-remove"
-                            />
-                        </div>
+                            <x-slot name="actions">
+                                <flux:file-item.remove
+                                    wire:click="removeScreenshot({{ $index }})"
+                                    :aria-label="__('Remove :file', ['file' => $screenshot->getClientOriginalName()])"
+                                    data-test="vs-screenshot-remove"
+                                />
+                            </x-slot>
+                        </flux:file-item>
                     @endforeach
                 </div>
             @endif
