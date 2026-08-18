@@ -34,8 +34,8 @@ test('the team settings page loads for a team member and shows the current value
 
     Livewire::actingAs($user)
         ->test('pages::teams.settings')
-        ->assertSet('vsMinimum', 1200000)
-        ->assertSet('trainVsRequirement', 900000)
+        ->assertSet('vsMinimum', '1200000')
+        ->assertSet('trainVsRequirement', '900000')
         ->assertSet('trainDesertStormRequirement', true);
 });
 
@@ -127,4 +127,19 @@ test('a member sees the settings read only', function () {
         ->assertDontSeeHtml('data-test="vs-minimum-input"')
         ->assertDontSeeHtml('data-test="team-settings-save-button"')
         ->assertSeeHtml('data-test="vs-minimum-value"');
+});
+
+test('masked requirements are stored without their separators', function () {
+    $user = User::factory()->create();
+    $team = $user->currentTeam;
+
+    Livewire::actingAs($user)
+        ->test('pages::teams.settings')
+        ->set('vsMinimum', '1,200,000')
+        ->set('trainVsRequirement', '70,000')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($team->refresh()->vs_minimum)->toBe(1200000)
+        ->and($team->train_vs_requirement)->toBe(70000);
 });

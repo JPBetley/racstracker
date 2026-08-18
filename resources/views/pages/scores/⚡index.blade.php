@@ -98,6 +98,9 @@ new #[Title('VS Scores')] class extends Component
      */
     public function saveWeek(SaveScore $saveScore): void
     {
+        // Cells arrive grouped by the input mask; everything below wants bare digits.
+        $this->grid = array_map(fn ($value): string => str_replace(',', '', (string) $value), $this->grid);
+
         $rules = $this->gridRules();
 
         if ($rules !== []) {
@@ -268,8 +271,9 @@ new #[Title('VS Scores')] class extends Component
                             <td class="px-4 py-2">
                                 <div class="flex justify-end">
                                     <flux:input
-                                        type="number"
-                                        min="0"
+                                        type="text"
+                                        inputmode="numeric"
+                                        mask:dynamic="$money($input, '.', ',', 0)"
                                         size="sm"
                                         class="w-40 text-right"
                                         wire:model.blur="grid.{{ $member->id }}"

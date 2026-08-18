@@ -175,9 +175,11 @@ new #[Title('Import VS scores')] class extends Component
 
         // An unselected member <select> arrives as an empty string, which would fail
         // the integer rule; "skip this row" is a null member, not a malformed one.
+        // Points arrive grouped by the input mask, so the separators come back out.
         $this->rows = array_map(fn (array $row): array => [
             ...$row,
             'member_id' => blank($row['member_id']) ? null : (int) $row['member_id'],
+            'points' => str_replace(',', '', (string) $row['points']),
         ], $this->rows);
 
         $this->validate([
@@ -406,8 +408,9 @@ new #[Title('Import VS scores')] class extends Component
                                 <td class="px-3 py-2">
                                     <div class="flex justify-end">
                                         <flux:input
-                                            type="number"
-                                            min="0"
+                                            type="text"
+                                            inputmode="numeric"
+                                            mask:dynamic="$money($input, '.', ',', 0)"
                                             size="sm"
                                             class="w-40 text-right"
                                             wire:model="rows.{{ $index }}.points"

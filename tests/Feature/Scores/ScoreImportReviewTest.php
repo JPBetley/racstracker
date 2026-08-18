@@ -54,3 +54,23 @@ test('a review row left unmatched is still skipped', function () {
 
     $component->assertSee('Will be skipped');
 });
+
+test('a masked points value is stored without its separators', function () {
+    $user = User::factory()->create();
+    $member = Member::factory()->for($user->currentTeam)->create(['name' => 'Ravager']);
+
+    $import = awaitingReview($user, 'Ravager');
+
+    Livewire::actingAs($user)
+        ->test('pages::scores.import')
+        ->set('importId', $import->id)
+        ->call('pollDraft')
+        ->set('rows.0.points', '2,345,678')
+        ->call('confirm')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('scores', [
+        'member_id' => $member->id,
+        'points' => 2345678,
+    ]);
+});

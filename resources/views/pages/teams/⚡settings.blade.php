@@ -12,16 +12,20 @@ use Livewire\Component;
 
 new #[Title('Team Settings')] class extends Component
 {
-    public ?int $vsMinimum = 0;
+    /**
+     * Held as strings because the inputs are masked with thousands separators.
+     * An int-typed property would coerce "1,200,000" down to 1 on the way in.
+     */
+    public string $vsMinimum = '0';
 
-    public ?int $trainVsRequirement = 0;
+    public string $trainVsRequirement = '0';
 
     public bool $trainDesertStormRequirement = false;
 
     public function mount(): void
     {
-        $this->vsMinimum = $this->team->vs_minimum;
-        $this->trainVsRequirement = $this->team->train_vs_requirement;
+        $this->vsMinimum = (string) $this->team->vs_minimum;
+        $this->trainVsRequirement = (string) $this->team->train_vs_requirement;
         $this->trainDesertStormRequirement = $this->team->train_desert_storm_requirement;
     }
 
@@ -32,6 +36,9 @@ new #[Title('Team Settings')] class extends Component
     {
         Gate::authorize('update', $this->team);
 
+        $this->vsMinimum = $this->withoutSeparators($this->vsMinimum);
+        $this->trainVsRequirement = $this->withoutSeparators($this->trainVsRequirement);
+
         $validated = $this->validate([
             'vsMinimum' => ['required', 'integer', 'min:0'],
             'trainVsRequirement' => ['required', 'integer', 'min:0'],
@@ -40,14 +47,27 @@ new #[Title('Team Settings')] class extends Component
 
         $updateTeamSettings->handle(
             $this->team,
-            $validated['vsMinimum'],
-            $validated['trainVsRequirement'],
+            (int) $validated['vsMinimum'],
+            (int) $validated['trainVsRequirement'],
             $this->trainDesertStormRequirement,
         );
 
         unset($this->team);
 
         Flux::toast(variant: 'success', text: __('Team settings saved.'));
+    }
+
+    /**
+     * Drop the grouping the input mask adds, reading a cleared field as zero.
+     *
+     * Zero is how this app spells "no requirement", so emptying the box is a way
+     * of switching the requirement off rather than a validation failure.
+     */
+    private function withoutSeparators(string $value): string
+    {
+        $value = str_replace(',', '', trim($value));
+
+        return $value === '' ? '0' : $value;
     }
 
     #[Computed]
@@ -72,8 +92,9 @@ new #[Title('Team Settings')] class extends Component
     @if ($this->permissions->canUpdateTeam)
         <form wire:submit="save" class="mt-6 max-w-lg space-y-6">
             <flux:input
-                type="number"
-                min="0"
+                type="text"
+                inputmode="numeric"
+                mask:dynamic="$money($input, '.', ',', 0)"
                 wire:model="vsMinimum"
                 :label="__('VS Minimum')"
                 :description="__('The weekly VS points every member is expected to reach. Zero means no minimum.')"
@@ -81,8 +102,9 @@ new #[Title('Team Settings')] class extends Component
             />
 
             <flux:input
-                type="number"
-                min="0"
+                type="text"
+                inputmode="numeric"
+                mask:dynamic="$money($input, '.', ',', 0)"
                 wire:model="trainVsRequirement"
                 :label="__('Train VS Requirement')"
                 :description="__('The weekly VS points needed to be eligible to conduct a train. Zero means no requirement.')"

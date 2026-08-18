@@ -284,3 +284,20 @@ test('the members page lists only active members', function () {
         ->assertSee('Current')
         ->assertDontSee('Departed');
 });
+
+test('a masked score is stored without its separators', function () {
+    [$user, $team] = userWithTeam();
+    $member = Member::factory()->for($team)->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::scores.index')
+        ->set("grid.{$member->id}", '12,345,678')
+        ->call('saveWeek')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('scores', [
+        'member_id' => $member->id,
+        'week_start' => '2025-01-06 00:00:00',
+        'points' => 12345678,
+    ]);
+});
