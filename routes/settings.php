@@ -7,6 +7,10 @@ use Laravel\Fortify\Features;
 Route::middleware(['auth'])->group(function () {
     Route::redirect('settings', 'settings/profile');
 
+    /**
+     * Deliberately outside the "verified" gate so a user who mistyped their
+     * email at registration can correct it and trigger a fresh verification.
+     */
     Route::livewire('settings/profile', 'pages::settings.profile')->name('profile.edit');
 });
 
