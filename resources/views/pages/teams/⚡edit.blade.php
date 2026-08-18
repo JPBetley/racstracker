@@ -302,13 +302,23 @@ new class extends Component
                         @endif
                     </div>
 
-                    @if ($this->permissions->canCreateInvitation)
-                        <flux:modal.trigger name="invite-member">
-                            <flux:button variant="primary" icon="user-plus" data-test="invite-member-button">
-                                {{ __('Invite member') }}
-                            </flux:button>
-                        </flux:modal.trigger>
-                    @endif
+                    <div class="flex items-center gap-2">
+                        @if ($this->permissions->canAddMember)
+                            <flux:modal.trigger name="add-member">
+                                <flux:button variant="filled" icon="magnifying-glass" data-test="add-member-button">
+                                    {{ __('Add existing member') }}
+                                </flux:button>
+                            </flux:modal.trigger>
+                        @endif
+
+                        @if ($this->permissions->canCreateInvitation)
+                            <flux:modal.trigger name="invite-member">
+                                <flux:button variant="primary" icon="user-plus" data-test="invite-member-button">
+                                    {{ __('Invite member') }}
+                                </flux:button>
+                            </flux:modal.trigger>
+                        @endif
+                    </div>
                 </div>
 
                 <div class="space-y-3">
@@ -443,6 +453,10 @@ new class extends Component
             @endif
         </div>
     </x-pages::settings.layout>
+
+    @if ($this->permissions->canAddMember)
+        <livewire:pages::teams.add-member-modal :team="$teamModel" />
+    @endif
 
     @if ($this->permissions->canCreateInvitation)
         <livewire:pages::teams.invite-member-modal :team="$teamModel" />
