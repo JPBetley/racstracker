@@ -335,12 +335,13 @@ new #[Title('Import VS scores')] class extends Component
             <flux:file-upload
                 wire:model="screenshots"
                 accept="image/*"
+                multiple
                 :label="__('Screenshots')"
                 data-test="vs-screenshot-input"
             >
                 <flux:file-upload.dropzone
                     :heading="__('Drop a screenshot here or click to browse')"
-                    :text="__('PNG or JPG, up to 10MB — add them one at a time')"
+                    :text="__('PNG or JPG, up to 10MB')"
                     with-progress
                 />
             </flux:file-upload>
