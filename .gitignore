@@ -25,3 +25,7 @@ yarn-error.log
 /.claude
 CLAUDE.md
 .mcp.json
+
+**/caddy
+frankenphp
+frankenphp-worker.php
