@@ -468,6 +468,11 @@ test('the S3 temporary upload disk refuses a multiple upload', function () {
     // Production keeps temporary uploads in the bucket, and that driver signs one file
     // per request: handing it a batch throws before a single byte moves. This is what
     // a plain `wire:model` on a `multiple` input does, so the page must not use one.
+    //
+    // Livewire has rewritten this on main: uploads are planned per file, chunked, and
+    // the exception is gone. No release has it yet — v4.4.1 still throws. When it does
+    // land, this test failing is the signal that the upload loop in the Blade view can
+    // go and the input can be bound with wire:model again.
     useS3TemporaryUploads();
 
     [$user] = vsImportActor();
