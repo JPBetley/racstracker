@@ -471,8 +471,8 @@ test('the S3 temporary upload disk refuses a multiple upload', function () {
     //
     // Livewire has rewritten this on main: uploads are planned per file, chunked, and
     // the exception is gone. No release has it yet — v4.4.1 still throws. When it does
-    // land, this test failing is the signal that the upload loop in the Blade view can
-    // go and the input can be bound with wire:model again.
+    // land, this test failing is the signal that the field can take a `multiple`
+    // attribute and accept a whole selection at once.
     useS3TemporaryUploads();
 
     [$user] = vsImportActor();
@@ -482,16 +482,21 @@ test('the S3 temporary upload disk refuses a multiple upload', function () {
         ->upload('screenshots', [UploadedFile::fake()->image('vs-1.png')], isMultiple: true);
 })->throws(S3DoesntSupportMultipleFileUploads::class);
 
-test('the upload field is not bound with wire:model', function () {
-    // The binding is what makes Livewire send the whole selection as one multiple
-    // upload. The page uploads a file at a time from Alpine instead.
+test('the upload field is bound without a multiple attribute', function () {
+    // The `multiple` attribute is what makes Livewire send the whole selection as one
+    // multiple upload, which the S3 temporary disk refuses. Without it each pick is a
+    // single upload that Livewire appends to the array instead.
     [$user] = vsImportActor();
 
-    Livewire::actingAs($user)
+    $html = Livewire::actingAs($user)
         ->test('pages::scores.import')
         ->assertSee('data-flux-file-upload', escape: false)
-        ->assertSee('data-test="vs-screenshot-input"', escape: false)
-        ->assertDontSee('wire:model="screenshots"', escape: false);
+        ->assertSee('wire:model="screenshots"', escape: false)
+        ->html();
+
+    $field = str($html)->after('<ui-file-upload')->before('>')->toString();
+
+    expect($field)->not->toContain('multiple');
 });
 
 test('screenshots uploaded one at a time are appended to the batch', function () {

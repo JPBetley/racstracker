@@ -325,77 +325,22 @@ new #[Title('Import VS scores')] class extends Component
         </flux:callout>
 
         {{--
-            The dropzone still takes a whole batch at once, but the files are handed to
-            Livewire one at a time rather than through wire:model. In production the
-            temporary upload disk is S3, whose driver signs a single file per request and
-            rejects a "multiple" upload outright. A single upload into an array property
-            is appended to it, so uploading in sequence fills $screenshots all the same.
+            No `multiple` attribute, deliberately. The temporary upload disk is the
+            bucket in production, and its driver signs one file per request: Livewire
+            rejects a multiple upload before a byte moves. Bound to an array property
+            every upload is appended instead, so the batch builds a screenshot at a
+            time. Livewire has lifted this on main, but no release carries it yet.
         --}}
-        <form
-            wire:submit="startParse"
-            class="mt-6 space-y-6"
-            data-test="vs-screenshot-upload-form"
-            x-data="{
-                uploading: false,
-                upload(event) {
-                    let picker = event.target;
-                    let files = Array.from(picker.files);
-
-                    if (files.length === 0) return;
-
-                    // Flux holds its own copy of the selection for a native form post, which
-                    // this form never makes; what has been uploaded is listed from the
-                    // component instead, so hand the picker back empty for the next batch.
-                    picker.clear();
-
-                    // Flux draws the dropzone's loading and progress state off these events,
-                    // which Livewire only dispatches for itself when wire:model is bound.
-                    let signal = (name, detail = {}) => picker.dispatchEvent(
-                        new CustomEvent(name, { bubbles: true, detail })
-                    );
-
-                    let total = files.length;
-                    let started = 0;
-                    let failed = 0;
-
-                    let next = () => {
-                        let file = files.shift();
-
-                        if (file === undefined) {
-                            this.uploading = false;
-                            signal(failed > 0 ? 'livewire-upload-error' : 'livewire-upload-finish');
-
-                            return;
-                        }
-
-                        started++;
-
-                        // A rejected file leaves its message on the property, so keep going:
-                        // one unreadable screenshot should not strand the rest of the batch.
-                        $wire.$upload('screenshots', file, () => next(), () => {
-                            failed++;
-                            next();
-                        }, (progressEvent) => signal('livewire-upload-progress', {
-                            progress: Math.floor((started - 1 + progressEvent.detail.progress / 100) / total * 100),
-                        }));
-                    };
-
-                    this.uploading = true;
-                    signal('livewire-upload-start');
-                    next();
-                },
-            }"
-            x-on:change="upload($event)"
-        >
+        <form wire:submit="startParse" class="mt-6 space-y-6" data-test="vs-screenshot-upload-form">
             <flux:file-upload
-                multiple
+                wire:model="screenshots"
                 accept="image/*"
                 :label="__('Screenshots')"
                 data-test="vs-screenshot-input"
             >
                 <flux:file-upload.dropzone
-                    :heading="__('Drop screenshots here or click to browse')"
-                    :text="__('PNG or JPG, up to 10MB each')"
+                    :heading="__('Drop a screenshot here or click to browse')"
+                    :text="__('PNG or JPG, up to 10MB — add them one at a time')"
                     with-progress
                 />
             </flux:file-upload>
@@ -422,10 +367,8 @@ new #[Title('Import VS scores')] class extends Component
                 </div>
             @endif
 
-            <flux:error name="screenshots" />
-
             <div class="flex justify-end">
-                <flux:button variant="primary" type="submit" icon="sparkles" x-bind:disabled="uploading" data-test="vs-screenshot-parse-button">
+                <flux:button variant="primary" type="submit" icon="sparkles" data-test="vs-screenshot-parse-button">
                     <span wire:loading.remove wire:target="startParse">{{ __('Read screenshots') }}</span>
                     <span wire:loading wire:target="startParse">{{ __('Starting…') }}</span>
                 </flux:button>
