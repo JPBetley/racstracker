@@ -12,11 +12,11 @@ use Laravel\Ai\Promptable;
 /**
  * Reads a weekly VS leaderboard from in-game "RANKING" screenshots.
  *
- * The reader sends every screenshot in one request. The provider and model come from
- * config (see config/vs.php), kept separate from the roster reader's config because a
- * misread digit is a silently wrong score. No sampling attributes (Temperature/TopP)
- * are set: this is a transcription task with one correct answer, and some models reject
- * them outright (Claude, from Opus 4.7 onwards).
+ * The reader sends every screenshot in one request. The providers and models it prompts
+ * are AiVisionVsScoreScreenshotReader::PROVIDERS, kept separate from the roster reader's
+ * because a misread digit is a silently wrong score. No sampling attributes
+ * (Temperature/TopP) are set: this is a transcription task with one correct answer, and
+ * some models reject them outright (Claude, from Opus 4.7 onwards).
  *
  * MaxTokens is generous because reasoning models count thinking tokens against it, and
  * thinking is on by default on several; a tight budget truncates the leaderboard mid-list.

@@ -5,7 +5,6 @@ namespace App\Imports\Ocr;
 use App\Ai\Agents\VsScoreScreenshotExtractor;
 use App\Imports\Ocr\Contracts\VsScoreScreenshotReader;
 use Illuminate\Support\Facades\Log;
-use InvalidArgumentException;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Files;
 use Normalizer;
@@ -14,7 +13,14 @@ use Normalizer;
  * Reads VS ranking screenshots with a vision model via the Laravel AI SDK.
  *
  * Every screenshot goes into a single prompt, so the model can de-duplicate the
- * overlapping scroll captures itself. The provider and model come from config/vs.php.
+ * overlapping scroll captures itself.
+ *
+ * Gemini Flash leads because it is free and, measured on the tests/stubs/vs fixtures with
+ * `php artisan vs:ocr-check`, read all 83 point totals correctly — the failure that
+ * matters here. OpenAI and Anthropic stand behind it only for a rate limit or an outage,
+ * because an import is a person waiting on a screen having already uploaded their
+ * screenshots. Each provider reads its own key: GEMINI_API_KEY, OPENAI_API_KEY,
+ * ANTHROPIC_API_KEY.
  *
  * The returned rows are still cleaned, parsed and de-duplicated here, because the
  * screen itself is adversarial rather than the model being weak: the pinned "your
@@ -35,15 +41,25 @@ class AiVisionVsScoreScreenshotReader implements VsScoreScreenshotReader
                 fn (string $path) => Files\Image::fromStorage($path, $disk),
                 array_values($imagePaths),
             ),
-            provider: $this->provider(),
-            model: config('vs.ocr.model'),
+            // The read fails over down this chain on a rate limit, an overloaded provider,
+            // or exhausted credits. Each entry carries its own model, so the model
+            // argument stays unset or it would override every one of them.
+            provider: [
+                Lab::Gemini->value => 'gemini-flash-latest',
+                Lab::OpenAI->value => 'gpt-5.4',
+                Lab::Anthropic->value => 'claude-sonnet-5',
+            ],
         );
 
         $rows = $this->normalise($response['rows'] ?? []);
 
+        // The provider is logged because failover is silent: a run that quietly moved off
+        // the free primary onto a paid fallback looks identical here without it.
         Log::debug('VS OCR read screenshots.', [
             'screenshots' => count($imagePaths),
             'rows' => count($rows),
+            'provider' => $response->meta->provider,
+            'model' => $response->meta->model,
         ]);
 
         // An empty read is indistinguishable from a clean run downstream, so capture
@@ -53,20 +69,6 @@ class AiVisionVsScoreScreenshotReader implements VsScoreScreenshotReader
         }
 
         return $rows;
-    }
-
-    /**
-     * Resolve the configured OCR provider.
-     *
-     * Matched by name here rather than with Lab::from, so a typo names itself instead
-     * of surfacing as an opaque enum error from deep inside the SDK.
-     */
-    private function provider(): Lab
-    {
-        $configured = (string) config('vs.ocr.provider');
-
-        return Lab::tryFrom($configured)
-            ?? throw new InvalidArgumentException("Unknown VS OCR provider [{$configured}].");
     }
 
     /**

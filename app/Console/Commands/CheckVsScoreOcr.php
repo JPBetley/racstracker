@@ -10,13 +10,14 @@ use Illuminate\Console\Command;
  * of "Weekly Rank" screenshots and diffing the result against its expected scores.json.
  * This is the go/no-go signal for whether the current OCR backend can be trusted with
  * nine-digit point totals, where one wrong digit is a silently wrong score.
+ *
+ * To measure a different backend, edit the provider chain in
+ * AiVisionVsScoreScreenshotReader and run this again.
  */
 class CheckVsScoreOcr extends Command
 {
     protected $signature = 'vs:ocr-check
-        {dir=tests/stubs/vs : Directory of *.png screenshots and a scores.json}
-        {--provider= : Override the OCR provider for this run, e.g. gemini}
-        {--model= : Override the OCR model for this run, e.g. gemini-flash-latest}';
+        {dir=tests/stubs/vs : Directory of *.png screenshots and a scores.json}';
 
     protected $description = 'Run VS score OCR over a fixture directory and report accuracy against scores.json';
 
@@ -36,22 +37,7 @@ class CheckVsScoreOcr extends Command
         $expected = collect(json_decode((string) file_get_contents($expectedFile), true)['scores'] ?? [])
             ->mapWithKeys(fn (array $row): array => [mb_strtolower($row['name']) => (int) $row['points']]);
 
-        // Overriding config rather than the reader keeps the run identical to production;
-        // the reader reads these at read() time, so setting them after injection is fine.
-        foreach (['provider', 'model'] as $key) {
-            if ($this->option($key) !== null) {
-                config()->set("vs.ocr.{$key}", $this->option($key));
-            }
-        }
-
-        // Two runs of this command are only comparable if each says which backend it used.
-        $this->info(sprintf(
-            'Reading %d screenshot(s) from %s via %s/%s …',
-            count($images),
-            $dir,
-            config('vs.ocr.provider'),
-            config('vs.ocr.model'),
-        ));
+        $this->info(sprintf('Reading %d screenshot(s) from %s …', count($images), $dir));
 
         // The reader reads from a disk, not from the filesystem, so the fixture directory
         // is registered as one for the run. This keeps the harness on the exact code path

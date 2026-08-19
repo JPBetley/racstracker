@@ -59,50 +59,26 @@ test('it reports the exact discrepancy when the reader misreads a total', functi
         ->assertSuccessful();
 });
 
-test('the --provider and --model options reach the reader for the run', function () {
-    // The whole point of the options is A/B-ing two backends without editing .env, so
-    // what matters is that the reader sees the override at the moment it reads.
-    $seen = new ArrayObject;
-
-    app()->bind(VsScoreScreenshotReader::class, fn (): VsScoreScreenshotReader => new class($seen) implements VsScoreScreenshotReader
+test('it reads through the reader the app resolves', function () {
+    // The run has to stay on the exact path production takes, or the accuracy it reports
+    // is not the accuracy an import would get.
+    $reader = new class implements VsScoreScreenshotReader
     {
-        public function __construct(private ArrayObject $seen) {}
+        public bool $read = false;
 
         public function read(array $imagePaths, ?string $disk = null): array
         {
-            $this->seen['provider'] = config('vs.ocr.provider');
-            $this->seen['model'] = config('vs.ocr.model');
+            $this->read = true;
 
             return vsGroundTruth();
         }
-    });
+    };
 
-    $this->artisan('vs:ocr-check', [
-        'dir' => 'tests/stubs/vs',
-        '--provider' => 'gemini',
-        '--model' => 'gemini-model-under-test',
-    ])
-        ->expectsOutputToContain('via gemini/gemini-model-under-test')
-        ->assertSuccessful();
+    app()->bind(VsScoreScreenshotReader::class, fn (): VsScoreScreenshotReader => $reader);
 
-    expect($seen->getArrayCopy())->toBe(['provider' => 'gemini', 'model' => 'gemini-model-under-test']);
-});
+    $this->artisan('vs:ocr-check', ['dir' => 'tests/stubs/vs'])->assertSuccessful();
 
-test('it leaves the configured backend alone when no override is passed', function () {
-    config()->set('vs.ocr.provider', 'anthropic');
-    config()->set('vs.ocr.model', 'claude-model-from-config');
-
-    app()->bind(VsScoreScreenshotReader::class, fn (): VsScoreScreenshotReader => new class implements VsScoreScreenshotReader
-    {
-        public function read(array $imagePaths, ?string $disk = null): array
-        {
-            return vsGroundTruth();
-        }
-    });
-
-    $this->artisan('vs:ocr-check', ['dir' => 'tests/stubs/vs'])
-        ->expectsOutputToContain('via anthropic/claude-model-from-config')
-        ->assertSuccessful();
+    expect($reader->read)->toBeTrue();
 });
 
 test('it fails when the fixture directory has no ground truth', function () {
