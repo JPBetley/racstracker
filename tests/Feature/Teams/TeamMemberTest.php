@@ -75,10 +75,10 @@ test('team member cannot be removed by non owners', function () {
         ->assertForbidden();
 });
 
-test('removed members current team is set to personal team', function () {
+test('removed members current team is set to their fallback team', function () {
     $owner = User::factory()->create();
     $member = User::factory()->create();
-    $personalTeam = $member->personalTeam();
+    $fallbackTeam = $member->fallbackTeam();
     $team = Team::factory()->create();
 
     $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
@@ -93,5 +93,5 @@ test('removed members current team is set to personal team', function () {
         ->call('removeMember')
         ->assertHasNoErrors();
 
-    expect($member->fresh()->current_team_id)->toEqual($personalTeam->id);
+    expect($member->fresh()->current_team_id)->toEqual($fallbackTeam->id);
 });

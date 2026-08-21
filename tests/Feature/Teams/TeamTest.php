@@ -207,13 +207,15 @@ test('deleting non current team leaves current team unchanged', function () {
     expect($user->fresh()->current_team_id)->toEqual($personalTeam->id);
 });
 
-test('deleting team switches other affected users to their personal team', function () {
+test('deleting team switches other affected users to their fallback team', function () {
     $owner = User::factory()->create();
     $member = User::factory()->create();
 
     $team = Team::factory()->create();
     $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
     $team->members()->attach($member, ['role' => TeamRole::Member->value]);
+
+    $memberFallback = $member->fallbackTeam($team);
 
     $owner->update(['current_team_id' => $team->id]);
     $member->update(['current_team_id' => $team->id]);
@@ -225,7 +227,7 @@ test('deleting team switches other affected users to their personal team', funct
         ->call('deleteTeam')
         ->assertHasNoErrors();
 
-    expect($member->fresh()->current_team_id)->toEqual($member->personalTeam()->id);
+    expect($member->fresh()->current_team_id)->toEqual($memberFallback->id);
 });
 
 test('personal teams cannot be deleted', function () {

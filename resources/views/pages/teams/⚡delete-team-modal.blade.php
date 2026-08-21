@@ -50,7 +50,7 @@ new class extends Component {
         DB::transaction(function () use ($user) {
             User::where('current_team_id', $this->team->id)
                 ->where('id', '!=', $user->id)
-                ->each(fn (User $affectedUser) => $affectedUser->switchTeam($affectedUser->personalTeam()));
+                ->each(fn (User $affectedUser) => $affectedUser->switchTeam($affectedUser->fallbackTeam($this->team)));
 
             $this->team->invitations()->delete();
             $this->team->memberships()->delete();

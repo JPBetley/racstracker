@@ -1,8 +1,14 @@
 <?php
 
+use App\Enums\TeamRole;
+use App\Models\Team;
 use App\Models\User;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Support\Facades\Notification;
+
+beforeEach(function () {
+    $this->racsTeam = Team::factory()->create(['id' => 1, 'name' => 'RACS', 'slug' => 'racs']);
+});
 
 test('registration screen can be rendered', function () {
     $response = $this->get(route('register'));
@@ -24,6 +30,11 @@ test('new users can register', function () {
         ->assertRedirect(route('dashboard', absolute: false));
 
     $this->assertAuthenticated();
+
+    expect($user->belongsToTeam($this->racsTeam))->toBeTrue()
+        ->and($user->teamRole($this->racsTeam))->toBe(TeamRole::Member)
+        ->and($user->current_team_id)->toBe($this->racsTeam->id)
+        ->and($user->personalTeam())->toBeNull();
 });
 
 test('registering emails a verification link and leaves the account unverified', function () {

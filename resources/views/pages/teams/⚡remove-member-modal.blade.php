@@ -43,7 +43,7 @@ new class extends Component {
             ->delete();
 
         if ($user->isCurrentTeam($this->team)) {
-            $user->switchTeam($user->personalTeam());
+            $user->switchTeam($user->fallbackTeam($this->team));
         }
 
         $this->dispatch('close-modal', name: $this->modalName);

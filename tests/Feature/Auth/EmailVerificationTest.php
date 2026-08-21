@@ -88,7 +88,7 @@ test('email verification screen can be rendered', function () {
 
 test('email can be verified', function () {
     $user = User::factory()->unverified()->create();
-    $team = $user->personalTeam();
+    $team = $user->currentTeam;
 
     Event::fake();
 
@@ -124,7 +124,7 @@ test('already verified user visiting verification link is redirected without fir
     $user = User::factory()->create([
         'email_verified_at' => now(),
     ]);
-    $team = $user->personalTeam();
+    $team = $user->currentTeam;
 
     Event::fake();
 
