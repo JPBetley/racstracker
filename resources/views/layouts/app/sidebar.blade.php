@@ -33,6 +33,10 @@
                     <flux:sidebar.item icon="cog-6-tooth" :href="route('team-settings.edit')" :current="request()->routeIs('team-settings.*')" wire:navigate>
                         {{ __('Team Settings') }}
                     </flux:sidebar.item>
+
+                    <flux:sidebar.item icon="book-open" :href="route('docs')" :current="request()->routeIs('docs')" wire:navigate>
+                        {{ __('Guide') }}
+                    </flux:sidebar.item>
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 
