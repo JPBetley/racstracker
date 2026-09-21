@@ -7,14 +7,13 @@ use App\Models\Member;
 class DeleteMember
 {
     /**
-     * Remove a member from the team's roster permanently.
+     * Deactivate a member so they drop off the active roster.
      *
-     * Deleting by hand is deliberate and final, so it discards the row and its
-     * scores outright. The alliance roster sync instead deactivates members who
-     * have left, keeping their history intact.
+     * Historical scores and conductor assignments are preserved exactly like an
+     * alliance sync departure — the only difference is that this is user-initiated.
      */
     public function handle(Member $member): void
     {
-        $member->delete();
+        $member->update(['is_active' => false]);
     }
 }

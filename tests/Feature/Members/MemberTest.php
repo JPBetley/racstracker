@@ -1,7 +1,9 @@
 <?php
 
 use App\Enums\MemberPosition;
+use App\Models\ConductorAssignment;
 use App\Models\Member;
+use App\Models\Score;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -173,16 +175,33 @@ test('editing the only R5 in place does not trip the cap', function () {
     ]);
 });
 
-test('a member can be deleted', function () {
+test('removing a member deactivates them instead of deleting', function () {
     $user = User::factory()->create();
-    $member = Member::factory()->for($user->currentTeam)->create();
+    $member = Member::factory()->for($user->currentTeam)->create(['is_active' => true]);
 
     Livewire::actingAs($user)
         ->test('pages::members.index')
         ->call('deleteMember', $member->id)
         ->assertHasNoErrors();
 
-    $this->assertDatabaseMissing('members', ['id' => $member->id]);
+    $this->assertDatabaseHas('members', ['id' => $member->id, 'is_active' => false]);
+});
+
+test('removing a member preserves their scores and conductor assignments', function () {
+    $user = User::factory()->create();
+    $team = $user->currentTeam;
+    $member = Member::factory()->for($team)->create(['is_active' => true]);
+
+    Score::factory()->for($member)->create(['points' => 5000]);
+    ConductorAssignment::factory()->for($team)->for($member)->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::members.index')
+        ->call('deleteMember', $member->id)
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('scores', ['member_id' => $member->id]);
+    $this->assertDatabaseHas('conductor_assignments', ['member_id' => $member->id]);
 });
 
 test('users cannot view the members page of a team they do not belong to', function () {
