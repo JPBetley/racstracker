@@ -5,6 +5,8 @@ namespace App\Providers;
 use App\Imports\Ocr\AiVisionVsScoreScreenshotReader;
 use App\Imports\Ocr\Contracts\VsScoreScreenshotReader;
 use App\LastWar\Contracts\LastWarApi;
+use App\LastWar\Game\Transport\GameTransport;
+use App\LastWar\Game\Transport\StreamTransport;
 use App\LastWar\HttpLastWarApi;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
@@ -21,6 +23,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(VsScoreScreenshotReader::class, AiVisionVsScoreScreenshotReader::class);
         $this->app->bind(LastWarApi::class, HttpLastWarApi::class);
+        $this->app->bind(GameTransport::class, StreamTransport::class);
     }
 
     /**
