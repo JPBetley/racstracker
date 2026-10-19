@@ -21,9 +21,9 @@ Schedule::command(PruneImportScreenshots::class)
     ->onOneServer();
 
 /**
- * Pull each roster and this week's VS standings from the game every night at 9:30pm ET.
+ * Pull each roster and this week's VS standings from the game every night, a half-hour before reset.
  *
- * That is half an hour before the server's 02:00 UTC day rollover, so each run
+ * Reset is always 02:00 UTC regardless of daylight saving, so each run
  * captures a nearly complete day, and Monday's run records the previous week's
  * final totals. Logging in kicks the bound account off any other device.
  *

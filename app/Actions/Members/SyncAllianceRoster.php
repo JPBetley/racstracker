@@ -21,7 +21,7 @@ class SyncAllianceRoster
      * Members present in the API but missing here are created, members that have
      * left are deactivated, and members who rejoin are reactivated. A player whose
      * uid changed (the game reissues it, e.g. after a server transfer) is matched by
-     * exact name to the stored member whose old uid has left, and relinked rather
+     * exact name (ignoring case) to the stored member whose old uid has left, and relinked rather
      * than duplicated, which the unique name per team would reject anyway. Nothing is
      * ever deleted, so historical scores stay attached to the member who earned
      * them whether or not they are still in the alliance.
@@ -58,10 +58,17 @@ class SyncAllianceRoster
             $counts = ['added' => 0, 'reactivated' => 0, 'updated' => 0, 'deactivated' => 0, 'unchanged' => 0];
             $keptIds = [];
 
-            foreach ($apiMembers as $row) {
+            // Known members are updated first, so a name freed by a rename in this
+            // same sync is released before a newcomer takes it.
+            $ordered = collect($apiMembers)
+                ->sortBy(fn (array $row): int => $byUid->has($row['uid']) ? 0 : 1)
+                ->values()
+                ->all();
+
+            foreach ($ordered as $row) {
                 $member = $byUid->get($row['uid'])
                     ?? $this->matchByName($row['name'], $unlinked)
-                    ?? $this->matcher->resolve($row['name'], $departed);
+                    ?? $this->matchRelinkedUid($row['name'], $departed);
 
                 if ($member === null) {
                     $created = $team->roster()->create([
@@ -132,6 +139,23 @@ class SyncAllianceRoster
     private function matchByName(string $name, Collection $candidates): ?Member
     {
         return $candidates->isEmpty() ? null : $this->matcher->suggest($name, $candidates);
+    }
+
+    /**
+     * Find the departed member a player with a reissued uid used to be.
+     *
+     * Only the current name, compared case-insensitively, counts: that is exactly
+     * the collision the unique name per team would reject. Aliases and normalised
+     * near-matches are left alone, since a new player who merely resembles someone
+     * who left long ago can be created without taking over their history.
+     *
+     * @param  Collection<int, Member>  $departed
+     */
+    private function matchRelinkedUid(string $name, Collection $departed): ?Member
+    {
+        $needle = mb_strtolower($name);
+
+        return $departed->first(fn (Member $member): bool => mb_strtolower($member->name) === $needle);
     }
 
     /**

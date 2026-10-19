@@ -314,3 +314,38 @@ it('schedules the nightly game vs sync at 01:30 utc', function () {
         ->and($events->first()->expression)->toBe('30 1 * * *')
         ->and($events->first()->timezone)->toBe('UTC');
 });
+
+it('still records scores when two members swap names', function () {
+    $team = gameSyncTeam();
+    $first = Member::factory()->for($team)->create(['uid' => '1001', 'name' => 'Alpha']);
+    $second = Member::factory()->for($team)->create(['uid' => '1002', 'name' => 'Bravo']);
+
+    $this->mock(AllianceReader::class)
+        ->shouldReceive('read')
+        ->once()
+        ->andReturn([
+            'members' => [
+                ['uid' => '1001', 'name' => 'Bravo', 'rank' => 1, 'power' => 2],
+                ['uid' => '1002', 'name' => 'Alpha', 'rank' => 1, 'power' => 1],
+            ],
+            'scores' => [
+                ['uid' => '1001', 'name' => 'Bravo', 'points' => 1_000],
+                ['uid' => '1002', 'name' => 'Alpha', 'points' => 500],
+            ],
+        ]);
+
+    $import = Import::factory()->for($team)->create([
+        'type' => ImportType::GameVsScores,
+        'payload' => ['alliance_id' => RACS_ALLIANCE, 'week_start' => '2026-10-19'],
+    ]);
+
+    (new FetchGameVsScores($import))->handle();
+    (new ImportVsScores($import->fresh()))->handle();
+
+    $weekScore = fn (Member $member) => $member->scores()->whereDate('week_start', '2026-10-19')->value('points');
+
+    expect($import->fresh()->results)->toHaveKey('roster_error')
+        ->and($first->fresh()->name)->toBe('Alpha')
+        ->and($weekScore($first))->toBe(1_000)
+        ->and($weekScore($second))->toBe(500);
+});

@@ -7,6 +7,7 @@ use App\Imports\Ocr\RosterNameMatcher;
 use App\Jobs\Imports\Concerns\RetriesGameFailures;
 use App\LastWar\Game\AllianceReader;
 use App\LastWar\Game\Exceptions\GameClientException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use RuntimeException;
@@ -33,8 +34,9 @@ class FetchGameVsScores extends ImportStep
      *
      * One login reads both the alliance member list and the ranking. The member list
      * is synced first so players who joined since the last run exist before their
-     * scores are matched. A roster sync the game's list cannot pass (an empty list, or
-     * one that breaks the position caps) is recorded as `roster_error` and the scores
+     * scores are matched. A roster sync the game's list cannot pass (an empty list, one
+     * that breaks the position caps, or names that collide, such as two members
+     * swapping names) is recorded as `roster_error` and the scores
      * are matched against the roster as it stands, rather than losing the night's scores.
      *
      * Rows are written in the same shape a confirmed screenshot import produces, so
@@ -82,7 +84,7 @@ class FetchGameVsScores extends ImportStep
 
         try {
             $this->record(['roster' => app(SyncAllianceRoster::class)->handle($team, $members)]);
-        } catch (InvalidArgumentException|ValidationException $e) {
+        } catch (InvalidArgumentException|ValidationException|UniqueConstraintViolationException $e) {
             $this->record(['roster_error' => $e->getMessage()]);
         }
 
