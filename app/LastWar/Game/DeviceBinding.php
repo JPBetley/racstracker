@@ -12,7 +12,7 @@ use App\Models\Team;
  * Binds this app to a game account as its own device, via an emailed code.
  *
  * A fresh device logs in as a guest, asks for a verification code for the account's
- * email, and trades that code for the account's long-lived login key. The gate
+ * email, and trades that code for the account's single-use login key. The gate
  * server then issues the device its own access/refresh token pair. The account
  * receives a "New Device Alert" email as a side effect.
  */
