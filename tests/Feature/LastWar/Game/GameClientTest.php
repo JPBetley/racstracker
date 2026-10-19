@@ -2,6 +2,7 @@
 
 use App\LastWar\Game\Exceptions\CommandFailedException;
 use App\LastWar\Game\Exceptions\GameClientException;
+use App\LastWar\Game\Exceptions\GateServerException;
 use App\LastWar\Game\Exceptions\LoginRejectedException;
 use App\LastWar\Game\Exceptions\SessionEndedException;
 use App\LastWar\Game\GameClient;
@@ -78,25 +79,35 @@ it('refreshes a stale access token before logging in', function () {
         ->and($this->transport->loginRequest()->getObject('p')->getString('at'))->toBe('new-access');
 });
 
-it('falls back to the login key when the refresh token is rejected', function () {
-    $account = GameAccount::factory()->staleAccessToken()->create(['game_uid' => '1001', 'login_key' => 'the-login-key']);
+it('asks for a re-bind when the refresh token is rejected', function () {
+    $account = GameAccount::factory()->staleAccessToken()->create(['game_uid' => '1001']);
 
     $this->mock(GslClient::class, function (MockInterface $gsl) {
         $gsl->shouldReceive('checkVersion')->andReturn(GameFixtures::gate());
         $gsl->shouldReceive('serverList')->once()
             ->withArgs(fn (...$args) => ($args[4] ?? null) === 'refresh')
             ->andReturn(GameFixtures::servers(code: '211'));
-        $gsl->shouldReceive('serverList')->once()
-            ->withArgs(fn (...$args) => ($args[4] ?? null) === 'login' && ($args[5] ?? null) === 'the-login-key')
-            ->andReturn(GameFixtures::servers(accessToken: 'from-login-key'));
+        $gsl->shouldNotReceive('serverList')->withArgs(fn (...$args) => ($args[4] ?? null) === 'login');
     });
 
-    $this->transport->script([FakeGameTransport::loginReply(new SfsObject)]);
+    try {
+        app(GameClient::class)->connect($account, waitForInit: false);
+        $this->fail('Expected a GateServerException.');
+    } catch (GateServerException $e) {
+        expect($e->requiresReauth())->toBeTrue()
+            ->and($e->getMessage())->toContain('lastwar:game-bind');
+    }
+
+    expect($account->fresh()->last_error)->toContain('refresh token was rejected');
+});
+
+it('asks for a re-bind when there is no refresh token at all', function () {
+    $account = GameAccount::factory()->staleAccessToken()->create(['refresh_token' => null]);
+
+    $this->mock(GslClient::class, fn (MockInterface $gsl) => $gsl->shouldReceive('checkVersion')->andReturn(GameFixtures::gate()));
 
     app(GameClient::class)->connect($account, waitForInit: false);
-
-    expect($account->fresh()->access_token)->toBe('from-login-key');
-});
+})->throws(GateServerException::class, 'no refresh token');
 
 it('follows a serverInfo redirect with the same token', function () {
     $account = GameAccount::factory()->create(['game_uid' => '1001']);

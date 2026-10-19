@@ -56,7 +56,7 @@ class GameAccountImport extends Command
         }
 
         $this->info("Bound game account {$account->game_uid} on {$account->zone} to team [{$team->slug}].");
-        $this->line('Its own tokens are issued on the first login. Remove LASTWAR_GAME_ACCOUNT if you set it.');
+        $this->line('Remove LASTWAR_GAME_ACCOUNT if you set it, and stop logging in from the environment it came from.');
 
         return self::SUCCESS;
     }

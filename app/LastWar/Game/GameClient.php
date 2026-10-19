@@ -183,28 +183,29 @@ class GameClient
     }
 
     /**
-     * Get fresh tokens: refresh-token first, then the long-lived login key.
+     * Get fresh tokens by trading in the refresh token.
+     *
+     * The login key from the email bind is spent on the first token pair, so the
+     * refresh token is the only renewable credential; once it is rejected the
+     * device has to be bound again.
      *
      * @throws GameClientException
      */
     private function reissueTokens(GameAccount $account, GateHandshake $gate): ServerList
     {
-        $servers = null;
-
-        if (filled($account->refresh_token)) {
-            try {
-                $servers = $this->gsl->serverList($gate, $account->device_id, (string) $account->zone, $account->game_uid, 'refresh', refreshToken: $account->refresh_token)
-                    ->ensureSuccessful(requireServers: false);
-            } catch (GateServerException $e) {
-                if (! $e->requiresReauth()) {
-                    throw $e;
-                }
-            }
+        if (blank($account->refresh_token)) {
+            throw new GateServerException('The game account has no refresh token. Bind it again with lastwar:game-bind.', '211');
         }
 
-        if ($servers?->accessToken === null) {
-            $servers = $this->gsl->serverList($gate, $account->device_id, '', $account->game_uid, 'login', loginKey: $account->login_key)
-                ->ensureSuccessful();
+        try {
+            $servers = $this->gsl->serverList($gate, $account->device_id, (string) $account->zone, $account->game_uid, 'refresh', refreshToken: $account->refresh_token)
+                ->ensureSuccessful(requireServers: false);
+        } catch (GateServerException $e) {
+            if (! $e->requiresReauth()) {
+                throw $e;
+            }
+
+            throw new GateServerException("The game account's refresh token was rejected. Bind it again with lastwar:game-bind.", $e->gateCode);
         }
 
         if ($servers->accessToken === null) {

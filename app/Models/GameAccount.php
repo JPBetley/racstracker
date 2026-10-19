@@ -12,8 +12,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * A Last War game account bound to this app as its own device.
  *
- * The login key is the long-lived credential from the email bind; the access and
- * refresh tokens are re-issued from it (or from each other) by the gate server.
+ * The login key from the email bind is single-use: it is spent on the first token
+ * pair and kept only for the record. The refresh token is the renewable credential:
+ * the gate server trades it for a new access and refresh token pair.
  */
 #[Fillable([
     'team_id', 'device_id', 'game_uid', 'zone', 'login_key', 'access_token', 'access_token_issued_at',
