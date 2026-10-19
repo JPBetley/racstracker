@@ -10,7 +10,8 @@ use App\LastWar\Game\Exceptions\GameClientException;
  * A frame is `[header byte][u16 BE length, or u32 when BIG_SIZED][body]`. Client
  * frames are always "encrypted": XOR against the body length's little-endian bytes,
  * applied after compression. Inbound frames may be zlib or (with USE_ZSTD) zstd
- * compressed, the latter carrying an extra u32 uncompressed length.
+ * compressed, the latter carrying an extra u32 uncompressed length. zstd is always
+ * decoded in pure PHP, so every host runs the same path.
  */
 final class PacketCodec
 {
@@ -111,7 +112,7 @@ final class PacketCodec
             return $body;
         }
 
-        return $zstd ? self::zstdDecode($body) : self::zlibDecode($body);
+        return $zstd ? ZstdDecoder::decompress($body) : self::zlibDecode($body);
     }
 
     /**
@@ -136,25 +137,6 @@ final class PacketCodec
 
         if ($out === false) {
             throw new GameClientException('Could not inflate a zlib-compressed game frame.');
-        }
-
-        return $out;
-    }
-
-    /**
-     * Decompress with the zstd extension when it is loaded, else in pure PHP
-     * (Laravel Cloud has no zstd extension).
-     */
-    private static function zstdDecode(string $body): string
-    {
-        if (! function_exists('zstd_uncompress')) {
-            return ZstdDecoder::decompress($body);
-        }
-
-        $out = zstd_uncompress($body);
-
-        if ($out === false) {
-            throw new GameClientException('Could not decompress a zstd-compressed game frame.');
         }
 
         return $out;

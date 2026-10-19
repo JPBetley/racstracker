@@ -5,7 +5,7 @@ namespace App\LastWar\Game\Sfs;
 use App\LastWar\Game\Exceptions\GameClientException;
 
 /**
- * A pure-PHP Zstandard decompressor (RFC 8878), for hosts without the zstd extension.
+ * A pure-PHP Zstandard decompressor (RFC 8878), so no zstd extension is needed.
  *
  * The game server zstd-compresses every large frame regardless of what the client
  * asks for, and Laravel Cloud cannot load the extension. This follows the zstd
