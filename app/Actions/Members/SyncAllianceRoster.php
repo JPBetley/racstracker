@@ -19,7 +19,10 @@ class SyncAllianceRoster
      * Reconcile a team's roster against the alliance membership reported by the API.
      *
      * Members present in the API but missing here are created, members that have
-     * left are deactivated, and members who rejoin are reactivated. Nothing is
+     * left are deactivated, and members who rejoin are reactivated. A player whose
+     * uid changed (the game reissues it, e.g. after a server transfer) is matched by
+     * exact name to the stored member whose old uid has left, and relinked rather
+     * than duplicated, which the unique name per team would reject anyway. Nothing is
      * ever deleted, so historical scores stay attached to the member who earned
      * them whether or not they are still in the alliance.
      *
@@ -47,11 +50,18 @@ class SyncAllianceRoster
             /** @var Collection<int, Member> $unlinked */
             $unlinked = $existing->whereNull('uid')->values();
 
+            /** @var Collection<int, Member> $departed */
+            $departed = $existing->whereNotNull('uid')
+                ->whereNotIn('uid', array_column($apiMembers, 'uid'))
+                ->values();
+
             $counts = ['added' => 0, 'reactivated' => 0, 'updated' => 0, 'deactivated' => 0, 'unchanged' => 0];
             $keptIds = [];
 
             foreach ($apiMembers as $row) {
-                $member = $byUid->get($row['uid']) ?? $this->matchByName($row['name'], $unlinked);
+                $member = $byUid->get($row['uid'])
+                    ?? $this->matchByName($row['name'], $unlinked)
+                    ?? $this->matcher->resolve($row['name'], $departed);
 
                 if ($member === null) {
                     $created = $team->roster()->create([
@@ -70,6 +80,7 @@ class SyncAllianceRoster
                 }
 
                 $unlinked = $unlinked->reject(fn (Member $candidate): bool => $candidate->is($member))->values();
+                $departed = $departed->reject(fn (Member $candidate): bool => $candidate->is($member))->values();
                 $keptIds[] = $member->id;
 
                 $wasInactive = ! $member->is_active;
