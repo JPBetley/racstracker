@@ -2,6 +2,7 @@
 
 use App\Enums\ImportStatus;
 use App\Enums\ImportType;
+use App\Imports\Workflows\GameVsScoreImportWorkflow;
 use App\Imports\Workflows\RosterImportWorkflow;
 use App\Imports\Workflows\VsScoreImportWorkflow;
 use App\Jobs\Imports\ImportStep;
@@ -27,6 +28,14 @@ test('the vs scores type resolves to the vs score workflow and its steps', funct
 
     expect($steps)->toHaveCount(1)
         ->and($steps[0])->toBeInstanceOf(ImportStep::class);
+});
+
+test('the game vs scores type fetches from the game then records the scores', function () {
+    $workflow = ImportType::GameVsScores->workflow();
+
+    expect($workflow)->toBeInstanceOf(GameVsScoreImportWorkflow::class)
+        ->and($workflow->steps(new Import))->toHaveCount(2)
+        ->and(ImportType::GameVsScores->label())->toBe('Game VS Scores');
 });
 
 test('the vs scores type is labelled for display', function () {

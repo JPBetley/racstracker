@@ -4,8 +4,10 @@ use App\Enums\ImportStatus;
 use App\Enums\ImportType;
 use App\Enums\TeamRole;
 use App\Jobs\Imports\SyncAllianceMembers;
-use App\LastWar\Contracts\LastWarApi;
-use App\LastWar\LastWarApiException;
+use App\LastWar\Game\AllianceReader;
+use App\LastWar\Game\Exceptions\GameClientException;
+use App\LastWar\Game\Exceptions\LoginRejectedException;
+use App\Models\GameAccount;
 use App\Models\Import;
 use App\Models\Member;
 use App\Models\Team;
@@ -14,18 +16,22 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Queue;
 
 /**
- * Create a team with an owner so imports can be attributed.
+ * Create a team with an owner so imports can be attributed, and a bound game account
+ * to read the roster with unless told otherwise.
  */
-function teamWithOwner(array $attributes = []): Team
+function teamWithOwner(array $attributes = [], bool $bound = true): Team
 {
     $team = Team::factory()->create($attributes);
     $team->members()->attach(User::factory()->create(), ['role' => TeamRole::Owner->value]);
+
+    if ($bound) {
+        GameAccount::factory()->for($team)->create();
+    }
 
     return $team;
 }
 
 beforeEach(function () {
-    config()->set('services.lastwar.key', 'test-key');
     config()->set('services.lastwar.alliance_id', null);
 });
 
@@ -79,12 +85,11 @@ it('fails when the team has no alliance id anywhere', function () {
     expect(Import::count())->toBe(0);
 });
 
-it('fails when no api key is configured', function () {
-    config()->set('services.lastwar.key', null);
-    teamWithOwner(['slug' => 'racs', 'alliance_id' => 'abc']);
+it('fails when the team has no bound game account', function () {
+    teamWithOwner(['slug' => 'racs', 'alliance_id' => 'abc'], bound: false);
 
     $this->artisan('import:alliance racs')
-        ->expectsOutputToContain('No Last War API key configured')
+        ->expectsOutputToContain('has no bound game account')
         ->assertFailed();
 
     expect(Import::count())->toBe(0);
@@ -102,10 +107,10 @@ it('syncs the roster and records the outcome on the import', function () {
     Member::factory()->for($team)->create(['uid' => 'uid-leaver', 'name' => 'Leaver']);
     Member::factory()->for($team)->create(['uid' => 'uid-stay', 'name' => 'Stayer']);
 
-    $this->mock(LastWarApi::class)
-        ->shouldReceive('allianceMembers')
+    $this->mock(AllianceReader::class)
+        ->shouldReceive('membersOnly')
         ->once()
-        ->with('abc')
+        ->withArgs(fn (GameAccount $account, string $allianceId) => $account->is($team->gameAccount) && $allianceId === 'abc')
         ->andReturn([
             ['uid' => 'uid-stay', 'name' => 'Stayer', 'rank' => 3, 'power' => 1],
             ['uid' => 'uid-new', 'name' => 'Newcomer', 'rank' => 5, 'power' => 2],
@@ -137,12 +142,26 @@ it('fails the import when the alliance id is missing at run time', function () {
         ->toThrow(RuntimeException::class, 'no Last War alliance ID');
 });
 
-it('marks the import failed when the api errors', function () {
+it('fails the import when the team has no bound game account at run time', function () {
+    $team = teamWithOwner(['slug' => 'racs', 'alliance_id' => 'abc'], bound: false);
+
+    $this->mock(AllianceReader::class)->shouldNotReceive('membersOnly');
+
+    $import = Import::factory()->for($team)->create([
+        'type' => ImportType::AllianceRoster,
+        'payload' => ['alliance_id' => 'abc'],
+    ]);
+
+    expect(fn () => (new SyncAllianceMembers($import))->handle())
+        ->toThrow(RuntimeException::class, 'no bound game account');
+});
+
+it('rethrows a transient game failure so the queue retries it', function () {
     $team = teamWithOwner(['slug' => 'racs', 'alliance_id' => 'abc']);
 
-    $this->mock(LastWarApi::class)
-        ->shouldReceive('allianceMembers')
-        ->andThrow(new LastWarApiException('Invalid API key.'));
+    $this->mock(AllianceReader::class)
+        ->shouldReceive('membersOnly')
+        ->andThrow(new GameClientException('Timed out after 15s waiting for the login reply.'));
 
     $import = Import::factory()->for($team)->create([
         'type' => ImportType::AllianceRoster,
@@ -150,9 +169,32 @@ it('marks the import failed when the api errors', function () {
         'status' => ImportStatus::Processing,
     ]);
 
-    expect(fn () => (new SyncAllianceMembers($import))->handle())
-        ->toThrow(LastWarApiException::class);
+    $job = (new SyncAllianceMembers($import))->withFakeQueueInteractions();
 
+    expect(fn () => $job->handle())->toThrow(GameClientException::class, 'Timed out');
+    $job->assertNotFailed();
+    expect($job->tries)->toBe(2)
+        ->and($job->backoff)->toBe([300])
+        ->and($team->roster()->count())->toBe(0);
+});
+
+it('fails a rejected game login without retrying', function () {
+    $team = teamWithOwner(['slug' => 'racs', 'alliance_id' => 'abc']);
+
+    $this->mock(AllianceReader::class)
+        ->shouldReceive('membersOnly')
+        ->andThrow(new LoginRejectedException('The game server rejected the login (ec=28, E005).', ['E005']));
+
+    $import = Import::factory()->for($team)->create([
+        'type' => ImportType::AllianceRoster,
+        'payload' => ['alliance_id' => 'abc'],
+        'status' => ImportStatus::Processing,
+    ]);
+
+    $job = (new SyncAllianceMembers($import))->withFakeQueueInteractions();
+    $job->handle();
+
+    $job->assertFailedWith(LoginRejectedException::class);
     expect($team->roster()->count())->toBe(0);
 });
 
@@ -193,7 +235,8 @@ it('skips teams without an alliance id of their own, ignoring the config fallbac
 it('skips a team that has no owner to attribute the import to', function () {
     Queue::fake();
 
-    Team::factory()->create(['slug' => 'ownerless', 'alliance_id' => str_repeat('a', 32)]);
+    $team = Team::factory()->create(['slug' => 'ownerless', 'alliance_id' => str_repeat('a', 32)]);
+    GameAccount::factory()->for($team)->create();
 
     $this->artisan('import:alliance-rosters')
         ->expectsOutputToContain('Skipped team [ownerless]')
@@ -210,29 +253,28 @@ it('reports when no team is configured to sync', function () {
     teamWithOwner(['slug' => 'racs', 'alliance_id' => null]);
 
     $this->artisan('import:alliance-rosters')
-        ->expectsOutputToContain('No teams have an alliance ID configured.')
+        ->expectsOutputToContain('No teams have a bound game account and alliance ID.')
         ->assertSuccessful();
 
     expect(Import::count())->toBe(0);
 });
 
-it('fails the nightly sweep when no api key is configured', function () {
+it('skips teams without a bound game account in the sweep', function () {
     Queue::fake();
 
-    config()->set('services.lastwar.key', null);
-    teamWithOwner(['slug' => 'racs', 'alliance_id' => str_repeat('a', 32)]);
+    $bound = teamWithOwner(['slug' => 'racs', 'alliance_id' => str_repeat('a', 32)]);
+    teamWithOwner(['slug' => 'unbound', 'alliance_id' => str_repeat('b', 32)], bound: false);
 
     $this->artisan('import:alliance-rosters')
-        ->expectsOutputToContain('No Last War API key configured')
-        ->assertFailed();
+        ->expectsOutputToContain('Queued 1 alliance roster import(s).')
+        ->assertSuccessful();
 
-    expect(Import::count())->toBe(0);
+    expect(Import::sole()->team_id)->toBe($bound->id);
 });
 
-it('schedules the nightly roster sweep', function () {
+it('leaves the roster sweep unscheduled since the nightly vs import refreshes rosters', function () {
     $events = collect(app(Schedule::class)->events())
         ->filter(fn ($event) => str_contains($event->command ?? '', 'import:alliance-rosters'));
 
-    expect($events)->toHaveCount(1)
-        ->and($events->first()->expression)->toBe('0 3 * * *');
+    expect($events)->toBeEmpty();
 });

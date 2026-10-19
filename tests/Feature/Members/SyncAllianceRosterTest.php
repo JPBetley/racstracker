@@ -272,3 +272,49 @@ it('touches aliases only to eager load them when re-syncing an unchanged roster'
         ->and($aliasQueries->first())->toStartWith('select')
         ->and(MemberAlias::count())->toBe(2);
 });
+
+it('relinks a member whose game uid changed instead of duplicating them', function () {
+    $member = Member::factory()->for($this->team)->create(['uid' => 'old-uid', 'name' => 'Coquient']);
+    Score::factory()->for($member)->create();
+
+    $counts = $this->sync->handle($this->team, [apiMember('new-uid', 'COQUIENT', rank: 4)]);
+
+    expect($counts['added'])->toBe(0)
+        ->and($counts['deactivated'])->toBe(0)
+        ->and($this->team->roster()->count())->toBe(1)
+        ->and($member->fresh()->uid)->toBe('new-uid')
+        ->and($member->fresh()->name)->toBe('COQUIENT')
+        ->and($member->fresh()->scores()->count())->toBe(1);
+});
+
+it('does not take over a same-named member whose uid is still in the alliance', function () {
+    $member = Member::factory()->for($this->team)->create(['uid' => 'uid-1', 'name' => 'Alpha']);
+
+    $this->sync->handle($this->team, [apiMember('uid-1', 'Alpha'), apiMember('uid-2', 'Bravo')]);
+
+    expect($member->fresh()->uid)->toBe('uid-1')
+        ->and($this->team->roster()->count())->toBe(2);
+});
+
+it('does not relink a departed member who only shares an alias or a normalised name', function () {
+    $robert = Member::factory()->for($this->team)->create(['uid' => 'old-1', 'name' => 'Robert']);
+    $robert->recordAlias('Bob');
+    $ace = Member::factory()->for($this->team)->create(['uid' => 'old-2', 'name' => 'Ace']);
+
+    $counts = $this->sync->handle($this->team, [apiMember('new-1', 'Bob'), apiMember('new-2', 'A.C.E')]);
+
+    expect($counts['added'])->toBe(2)
+        ->and($robert->fresh()->uid)->toBe('old-1')
+        ->and($ace->fresh()->uid)->toBe('old-2')
+        ->and($this->team->roster()->count())->toBe(4);
+});
+
+it('lets a newcomer take a name a member gave up in the same sync', function () {
+    $renamer = Member::factory()->for($this->team)->create(['uid' => 'uid-1', 'name' => 'Xeno']);
+
+    $counts = $this->sync->handle($this->team, [apiMember('uid-2', 'Xeno'), apiMember('uid-1', 'Yara')]);
+
+    expect($counts['added'])->toBe(1)
+        ->and($renamer->fresh()->name)->toBe('Yara')
+        ->and($this->team->roster()->where('uid', 'uid-2')->value('name'))->toBe('Xeno');
+});

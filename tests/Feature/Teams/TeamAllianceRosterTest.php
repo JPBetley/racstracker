@@ -4,6 +4,7 @@ use App\Enums\ImportStatus;
 use App\Enums\ImportType;
 use App\Enums\TeamRole;
 use App\Jobs\Imports\SyncAllianceMembers;
+use App\Models\GameAccount;
 use App\Models\Import;
 use App\Models\Member;
 use App\Models\Team;
@@ -20,18 +21,22 @@ function allianceId(string $fill = 'a'): string
 }
 
 /**
- * Create a team the given user owns, so team updates are authorized.
+ * Create a team the given user owns, so team updates are authorized, with a bound
+ * game account to sync the roster from unless told otherwise.
  */
-function ownedTeam(User $user, array $attributes = []): Team
+function ownedTeam(User $user, array $attributes = [], bool $bound = true): Team
 {
     $team = Team::factory()->create($attributes);
     $team->members()->attach($user, ['role' => TeamRole::Owner->value]);
+
+    if ($bound) {
+        GameAccount::factory()->for($team)->create();
+    }
 
     return $team;
 }
 
 beforeEach(function () {
-    config()->set('services.lastwar.key', 'test-key');
     config()->set('services.lastwar.alliance_id', null);
 });
 
@@ -161,16 +166,16 @@ test('syncing is refused when the team has no alliance id', function () {
     Queue::assertNothingPushed();
 });
 
-test('syncing is refused when no api key is configured', function () {
+test('syncing is refused when the team has no bound game account', function () {
     Queue::fake();
-    config()->set('services.lastwar.key', null);
 
     $user = User::factory()->create();
-    $team = ownedTeam($user, ['alliance_id' => allianceId()]);
+    $team = ownedTeam($user, ['alliance_id' => allianceId()], bound: false);
 
     Livewire::actingAs($user)
         ->test('pages::teams.edit', ['team' => $team])
         ->assertSet('canSyncRoster', false)
+        ->assertSee('No game account is bound to this team')
         ->call('syncRoster');
 
     expect(Import::count())->toBe(0);

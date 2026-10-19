@@ -57,6 +57,26 @@ return [
         'session_key' => env('LASTWAR_SESSION_KEY'),
         'alliance_id' => env('LASTWAR_ALLIANCE_ID'),
         'timeout' => env('LASTWAR_TIMEOUT', 30),
+
+        /*
+        | The native game client (app/LastWar/Game), which logs into the game
+        | servers directly as its own bound device instead of going through
+        | api.lastwar.tools. Access tokens are bound to the client build that
+        | issued them, so bump app_version/version_code when the game forces an
+        | update (check-version returns updateType=2).
+        */
+        'game' => [
+            'gate_hosts' => [
+                'https://lastwar-serverlist-cf.lastwarapp.net',
+                'https://lastwar-serverlist-us-aws-ali.lastwargame.com',
+                'https://lastwar-serverlist-us-gcp-ali.lastwargame.com',
+            ],
+            'package_name' => 'com.fun.lastwar.gp',
+            'app_version' => env('LASTWAR_GAME_APP_VERSION', '1.0.364'),
+            'version_code' => env('LASTWAR_GAME_VERSION_CODE', '1892'),
+            'unity_version' => '440',
+            'timeout' => env('LASTWAR_GAME_TIMEOUT', 15),
+        ],
     ],
 
 ];

@@ -92,13 +92,13 @@ new class extends Component
     }
 
     /**
-     * Queue the one-off roster sync that seeds a new team from the Last War API.
+     * Queue the one-off roster sync that seeds a new team from the game.
      *
      * This is a setup step only: once the roster exists it is kept current by the
      * nightly sync, so seeding again is refused rather than re-run.
      *
-     * The sync runs on the queue because unkeyed API requests are served by a shared
-     * connection pool and can take an unbounded amount of time.
+     * The sync runs on the queue because it logs in as the team's bound game account,
+     * which kicks that account off any other device.
      */
     public function syncRoster(StartImport $startImport): void
     {
@@ -118,8 +118,8 @@ new class extends Component
             return;
         }
 
-        if (blank(config('services.lastwar.key'))) {
-            Flux::toast(variant: 'danger', text: __('No Last War API key is configured.'));
+        if ($this->teamModel->gameAccount()->doesntExist()) {
+            Flux::toast(variant: 'danger', text: __('Bind a game account with lastwar:game-bind before syncing the roster.'));
 
             return;
         }
@@ -207,14 +207,14 @@ new class extends Component
     /**
      * Whether the one-off seeding sync can run.
      *
-     * It needs an alliance to read, a key to read it with, and an empty roster —
+     * It needs an alliance to read, a bound game account to read it with, and an empty roster —
      * after setup the nightly sync owns keeping the roster current.
      */
     #[Computed]
     public function canSyncRoster(): bool
     {
         return filled($this->teamModel->allianceId())
-            && filled(config('services.lastwar.key'))
+            && $this->teamModel->gameAccount()->exists()
             && $this->teamModel->roster()->doesntExist();
     }
 }; ?>
@@ -248,14 +248,14 @@ new class extends Component
                 <div class="space-y-6">
                     <div>
                         <flux:heading>{{ __('Alliance roster') }}</flux:heading>
-                        <flux:subheading>{{ __('Seed this team\'s roster from the Last War API. After setup the nightly sync keeps it current.') }}</flux:subheading>
+                        <flux:subheading>{{ __('Seed this team\'s roster from the game. After setup the nightly sync keeps it current.') }}</flux:subheading>
                     </div>
 
                     <form wire:submit="updateAlliance" class="space-y-6">
                         <flux:input
                             wire:model="allianceId"
                             :label="__('Alliance ID')"
-                            :description="__('The 32-character hex ID of your alliance, from the Last War API alliance rankings.')"
+                            :description="__('The 32-character hex ID of your alliance, as the game reports it.')"
                             placeholder="0123456789abcdef0123456789abcdef"
                             data-test="alliance-id-input"
                         />
@@ -285,7 +285,7 @@ new class extends Component
                                 @elseif (blank($teamModel->allianceId()))
                                     {{ __('Save an alliance ID before you can sync the roster.') }}
                                 @else
-                                    {{ __('No Last War API key is configured, so the roster cannot be synced.') }}
+                                    {{ __('No game account is bound to this team, so the roster cannot be synced. Bind one with lastwar:game-bind.') }}
                                 @endif
                             </flux:text>
                         @endunless

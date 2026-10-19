@@ -10,28 +10,25 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
 #[Signature('import:alliance-rosters')]
-#[Description('Queue an alliance roster import for every team with a Last War alliance ID')]
+#[Description('Queue an alliance roster import from the game for every team with a bound game account')]
 class SyncAllianceRosters extends Command
 {
     /**
-     * Queue the nightly roster refresh for every team configured to sync.
+     * Queue a roster refresh from the game for every team configured to sync.
      *
-     * Only teams with an `alliance_id` of their own are swept. The
+     * The nightly VS import already refreshes each roster in the same login, so this
+     * is not scheduled; it remains for running by hand.
+     *
+     * Only teams with a bound game account and an `alliance_id` of their own are swept. The
      * `services.lastwar.alliance_id` fallback is deliberately ignored here: it would
      * point every unconfigured team — personal teams included — at the same alliance.
      */
     public function handle(StartImport $startImport): int
     {
-        if (blank(config('services.lastwar.key'))) {
-            $this->error('No Last War API key configured. Set LASTWAR_API_KEY.');
-
-            return self::FAILURE;
-        }
-
-        $teams = Team::whereNotNull('alliance_id')->get();
+        $teams = Team::whereNotNull('alliance_id')->whereHas('gameAccount')->get();
 
         if ($teams->isEmpty()) {
-            $this->info('No teams have an alliance ID configured.');
+            $this->info('No teams have a bound game account and alliance ID.');
 
             return self::SUCCESS;
         }

@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable(['name', 'slug', 'is_personal', 'alliance_id', 'vs_minimum', 'train_vs_requirement', 'train_desert_storm_requirement'])]
@@ -93,6 +94,16 @@ class Team extends Model
     public function roster(): HasMany
     {
         return $this->hasMany(Member::class);
+    }
+
+    /**
+     * Get the Last War game account bound to this team for live syncing.
+     *
+     * @return HasOne<GameAccount, $this>
+     */
+    public function gameAccount(): HasOne
+    {
+        return $this->hasOne(GameAccount::class);
     }
 
     /**
