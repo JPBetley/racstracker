@@ -64,6 +64,10 @@ return [
         | api.lastwar.tools. Access tokens are bound to the client build that
         | issued them, so bump app_version/version_code when the game forces an
         | update (check-version returns updateType=2).
+        |
+        | account_import: a lastwar:game-account-export string, read by
+        | lastwar:game-account-import when no --data is given. Set it only for
+        | the import, then remove it: it grants access to the game account.
         */
         'game' => [
             'gate_hosts' => [
@@ -76,6 +80,7 @@ return [
             'version_code' => env('LASTWAR_GAME_VERSION_CODE', '1892'),
             'unity_version' => '440',
             'timeout' => env('LASTWAR_GAME_TIMEOUT', 15),
+            'account_import' => env('LASTWAR_GAME_ACCOUNT'),
         ],
     ],
 
