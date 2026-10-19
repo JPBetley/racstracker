@@ -4,7 +4,7 @@ namespace App\Console\Commands;
 
 use App\Actions\Imports\StartImport;
 use App\Enums\ImportType;
-use App\LastWar\Game\VsRankingReader;
+use App\LastWar\Game\AllianceReader;
 use App\Models\Team;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -16,6 +16,9 @@ class SyncGameVsScores extends Command
 {
     /**
      * Queue the nightly VS score refresh for every team that can sync from the game.
+     *
+     * Each import also refreshes the team's roster from the game in the same login,
+     * before matching the scores, so new members are scored on the night they appear.
      *
      * Each run overwrites the current week's scores with the running weekly totals,
      * so the last run before the Monday reset leaves the week's final standings.
@@ -31,7 +34,7 @@ class SyncGameVsScores extends Command
             return self::SUCCESS;
         }
 
-        $weekStart = VsRankingReader::weekStartAt(now())->toDateString();
+        $weekStart = AllianceReader::weekStartAt(now())->toDateString();
         $queued = 0;
 
         foreach ($teams as $team) {

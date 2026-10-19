@@ -10,7 +10,7 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
 #[Signature('import:alliance {team : The team slug} {--alliance= : Override the alliance ID to import from}')]
-#[Description('Queue an alliance roster import from the Last War API')]
+#[Description('Queue an alliance roster import from the game')]
 class ImportAllianceMembers extends Command
 {
     /**
@@ -43,8 +43,9 @@ class ImportAllianceMembers extends Command
             return self::FAILURE;
         }
 
-        if (blank(config('services.lastwar.key'))) {
-            $this->error('No Last War API key configured. Set LASTWAR_API_KEY.');
+        if ($team->gameAccount === null) {
+            $this->error("Team [{$team->slug}] has no bound game account.");
+            $this->line("Bind one with: php artisan lastwar:game-bind {$team->slug}");
 
             return self::FAILURE;
         }

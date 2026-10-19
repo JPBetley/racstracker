@@ -2,16 +2,19 @@
 
 namespace App\Jobs\Imports;
 
+use App\Actions\Members\SyncAllianceRoster;
 use App\Imports\Ocr\RosterNameMatcher;
+use App\Jobs\Imports\Concerns\RetriesGameFailures;
+use App\LastWar\Game\AllianceReader;
 use App\LastWar\Game\Exceptions\GameClientException;
-use App\LastWar\Game\Exceptions\GateServerException;
-use App\LastWar\Game\Exceptions\LoginRejectedException;
-use App\LastWar\Game\Exceptions\SessionEndedException;
-use App\LastWar\Game\VsRankingReader;
+use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 use RuntimeException;
 
 class FetchGameVsScores extends ImportStep
 {
+    use RetriesGameFailures;
+
     /**
      * Every attempt is a fresh login that kicks whoever is playing the account, so
      * only one spaced-out retry is allowed, and only for failures that might pass.
@@ -26,7 +29,13 @@ class FetchGameVsScores extends ImportStep
     public array $backoff = [300];
 
     /**
-     * Read this week's VS ranking from the game and stage it as reviewed score rows.
+     * Refresh the roster from the game, then stage this week's VS ranking as reviewed score rows.
+     *
+     * One login reads both the alliance member list and the ranking. The member list
+     * is synced first so players who joined since the last run exist before their
+     * scores are matched. A roster sync the game's list cannot pass (an empty list, or
+     * one that breaks the position caps) is recorded as `roster_error` and the scores
+     * are matched against the roster as it stands, rather than losing the night's scores.
      *
      * Rows are written in the same shape a confirmed screenshot import produces, so
      * the following ImportVsScores step records them exactly as it would those.
@@ -51,16 +60,16 @@ class FetchGameVsScores extends ImportStep
             throw new RuntimeException("Team [{$team->slug}] has no Last War alliance ID configured.");
         }
 
-        $weekStart = $this->import->payload['week_start'] ?? VsRankingReader::weekStartAt(now())->toDateString();
+        $weekStart = $this->import->payload['week_start'] ?? AllianceReader::weekStartAt(now())->toDateString();
 
-        if ($weekStart !== VsRankingReader::weekStartAt(now())->toDateString()) {
+        if ($weekStart !== AllianceReader::weekStartAt(now())->toDateString()) {
             $this->fail(new RuntimeException("The VS week of {$weekStart} has ended; the game now ranks a newer week."));
 
             return;
         }
 
         try {
-            $ranking = app(VsRankingReader::class)->weeklyScores($account, $allianceId);
+            ['members' => $members, 'scores' => $ranking] = app(AllianceReader::class)->read($account, $allianceId);
         } catch (GameClientException $e) {
             if (! self::isWorthRetrying($e)) {
                 $this->fail($e);
@@ -69,6 +78,12 @@ class FetchGameVsScores extends ImportStep
             }
 
             throw $e;
+        }
+
+        try {
+            $this->record(['roster' => app(SyncAllianceRoster::class)->handle($team, $members)]);
+        } catch (InvalidArgumentException|ValidationException $e) {
+            $this->record(['roster_error' => $e->getMessage()]);
         }
 
         $roster = $team->roster()->with('aliases')->get();
@@ -93,21 +108,5 @@ class FetchGameVsScores extends ImportStep
             'alliance_id' => $allianceId,
             'fetched' => count($scores),
         ]);
-    }
-
-    /**
-     * Whether a retry could get a different answer than this failure.
-     *
-     * Dead credentials and rejected logins fail the same way every time, and the
-     * owner logging back in is no reason to kick them off again.
-     */
-    private static function isWorthRetrying(GameClientException $e): bool
-    {
-        return match (true) {
-            $e instanceof GateServerException => ! $e->requiresReauth(),
-            $e instanceof LoginRejectedException => false,
-            $e instanceof SessionEndedException => $e->push !== 'push.user.off',
-            default => true,
-        };
     }
 }
