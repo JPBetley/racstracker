@@ -141,10 +141,14 @@ final class PacketCodec
         return $out;
     }
 
+    /**
+     * Decompress with the zstd extension when it is loaded, else in pure PHP
+     * (Laravel Cloud has no zstd extension).
+     */
     private static function zstdDecode(string $body): string
     {
         if (! function_exists('zstd_uncompress')) {
-            throw new GameClientException('Received a zstd-compressed game frame, but the PHP zstd extension is not installed.');
+            return ZstdDecoder::decompress($body);
         }
 
         $out = zstd_uncompress($body);
