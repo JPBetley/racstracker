@@ -30,7 +30,9 @@ class VsRankingReader
      * Fetch every alliance member's VS points for the current week.
      *
      * The ranking lists both alliances in the matchup, so only entries for the given
-     * alliance are kept. Logging in kicks the account off any other device.
+     * alliance are kept. A ranking that lists other alliances but not this one means
+     * the configured alliance id is wrong, so that throws rather than reporting an
+     * empty week. Logging in kicks the account off any other device.
      *
      * @return list<array{uid: string, name: string, points: int}>
      *
@@ -47,8 +49,18 @@ class VsRankingReader
             $session->close();
         }
 
-        return collect($reply->getArray('rankInfo')?->objects() ?? [])
-            ->filter(fn (SfsObject $entry): bool => $entry->getString('aid') === $allianceId && $entry->getString('uid') !== '')
+        $entries = collect($reply->getArray('rankInfo')?->objects() ?? []);
+        $ours = $entries->filter(fn (SfsObject $entry): bool => $entry->getString('aid') === $allianceId && $entry->getString('uid') !== '');
+
+        if ($ours->isEmpty() && $entries->isNotEmpty()) {
+            throw new GameClientException(sprintf(
+                'The VS ranking lists no members of alliance [%s]; it lists alliances [%s].',
+                $allianceId,
+                $entries->map(fn (SfsObject $entry): string => $entry->getString('aid'))->unique()->implode(', '),
+            ));
+        }
+
+        return $ours
             ->map(fn (SfsObject $entry): array => [
                 'uid' => $entry->getString('uid'),
                 'name' => trim($entry->getString('name')),

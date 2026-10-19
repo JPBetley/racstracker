@@ -1,11 +1,15 @@
 <?php
 
+use App\Actions\Imports\StartImport;
 use App\Enums\ImportStatus;
 use App\Enums\ImportType;
 use App\Enums\TeamRole;
 use App\Jobs\Imports\FetchGameVsScores;
 use App\Jobs\Imports\ImportVsScores;
+use App\LastWar\Game\Exceptions\GameClientException;
+use App\LastWar\Game\Exceptions\GateServerException;
 use App\LastWar\Game\Exceptions\LoginRejectedException;
+use App\LastWar\Game\Exceptions\SessionEndedException;
 use App\LastWar\Game\VsRankingReader;
 use App\Models\GameAccount;
 use App\Models\Import;
@@ -133,12 +137,12 @@ it('fails the import when the team has no bound account', function () {
         ->toThrow(RuntimeException::class, 'no bound game account');
 });
 
-it('lets a rejected game login fail the import', function () {
+it('fails a rejected game login without retrying', function (Throwable $error) {
     $team = gameSyncTeam();
 
     $this->mock(VsRankingReader::class)
         ->shouldReceive('weeklyScores')
-        ->andThrow(new LoginRejectedException('The game server rejected the login (ec=28, E005).', ['E005']));
+        ->andThrow($error);
 
     $import = Import::factory()->for($team)->create([
         'type' => ImportType::GameVsScores,
@@ -146,10 +150,74 @@ it('lets a rejected game login fail the import', function () {
         'status' => ImportStatus::Processing,
     ]);
 
-    expect(fn () => (new FetchGameVsScores($import))->handle())
-        ->toThrow(LoginRejectedException::class, 'E005');
+    $job = (new FetchGameVsScores($import))->withFakeQueueInteractions();
+    $job->handle();
 
+    $job->assertFailedWith($error::class);
     expect(Score::count())->toBe(0);
+})->with([
+    'login rejected' => fn () => new LoginRejectedException('The game server rejected the login (ec=28, E005).', ['E005']),
+    'login key dead' => fn () => GateServerException::fromCode('211'),
+    'owner logged back in' => fn () => new SessionEndedException('push.user.off'),
+]);
+
+it('rethrows a transient game failure so the queue retries it', function () {
+    $team = gameSyncTeam();
+
+    $this->mock(VsRankingReader::class)
+        ->shouldReceive('weeklyScores')
+        ->andThrow(new GameClientException('Timed out after 15s waiting for the login reply.'));
+
+    $import = Import::factory()->for($team)->create([
+        'type' => ImportType::GameVsScores,
+        'payload' => ['alliance_id' => RACS_ALLIANCE, 'week_start' => '2026-10-19'],
+    ]);
+
+    $job = (new FetchGameVsScores($import))->withFakeQueueInteractions();
+
+    expect(fn () => $job->handle())->toThrow(GameClientException::class, 'Timed out');
+    $job->assertNotFailed();
+    expect($job->tries)->toBe(2)
+        ->and($job->backoff)->toBe([300]);
+});
+
+it('fails the whole import when the game login is rejected', function () {
+    $team = gameSyncTeam();
+
+    $this->mock(VsRankingReader::class)
+        ->shouldReceive('weeklyScores')
+        ->andThrow(new LoginRejectedException('The game server rejected the login (ec=28, E005).', ['E005']));
+
+    $import = app(StartImport::class)->handle($team, $team->owner(), ImportType::GameVsScores, [
+        'alliance_id' => RACS_ALLIANCE,
+        'week_start' => '2026-10-19',
+    ]);
+
+    expect($import->fresh()->status)->toBe(ImportStatus::Failed)
+        ->and(Score::count())->toBe(0);
+});
+
+it('refuses to record a week that rolled over before the fetch ran', function () {
+    $team = gameSyncTeam();
+    $member = Member::factory()->for($team)->create(['uid' => '1001']);
+    Score::factory()->for($member)->forWeek(CarbonImmutable::parse('2026-10-12'))->create(['points' => 80_000_000]);
+
+    $this->mock(VsRankingReader::class)->shouldNotReceive('weeklyScores');
+
+    // Queued at Monday 01:30 UTC for the week of the 12th, run after the 02:00 rollover.
+    $this->travelTo(CarbonImmutable::parse('2026-10-19 02:05:00', 'UTC'));
+
+    $import = Import::factory()->for($team)->create([
+        'type' => ImportType::GameVsScores,
+        'payload' => ['alliance_id' => RACS_ALLIANCE, 'week_start' => '2026-10-12'],
+    ]);
+
+    $job = (new FetchGameVsScores($import))->withFakeQueueInteractions();
+    $job->handle();
+
+    $job->assertFailedWith(RuntimeException::class);
+    expect($import->fresh()->payload)->not->toHaveKey('scores')
+        ->and($member->scores()->whereDate('week_start', '2026-10-12')->value('points'))->toBe(80_000_000);
 });
 
 it('schedules the nightly game vs sync at 01:30 utc', function () {
